@@ -2,11 +2,11 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct GitWebhookPayload {
-    secret: String,
+    secret: Option<String>,
     #[serde(rename(deserialize = "ref"))]
-    git_reference: String,
+    pub git_reference: String,
     before: String,
-    after: String,
+    pub after: String,
     compare_url: String,
     commits: Vec<CommitWebhookPayload>,
     pub repository: RepositoryWebhookPayload,
@@ -41,7 +41,7 @@ pub struct RepositoryWebhookPayload {
     description: String,
     private: bool,
     fork: bool,
-    html_url: String,
+    pub html_url: String,
     pub ssh_url: String,
     clone_url: String,
     website: String,
