@@ -1,0 +1,8 @@
+FROM rust:1.67
+
+WORKDIR /usr/src/constructum-client
+COPY . .
+
+RUN cargo install --path .
+
+CMD ["construcum-client"]
