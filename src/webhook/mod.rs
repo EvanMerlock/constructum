@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncReadExt, task};
 use uuid::Uuid;
 
-use crate::{git, pipeline::Pipeline, ConstructumState, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job}};
+use crate::{git, pipeline::Pipeline, ConstructumState, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
 
 use self::{error::ConstructumWebhookError, payload::GitWebhookPayload};
 
@@ -78,6 +78,7 @@ pub async fn webhook(
 
         // clean up client job
         delete_job(&pipeline_client_name).await.expect("failed to delete job");
+        delete_pvc(&pipeline_uuid.to_string()).await.expect("failed to delete job");
     });
 
     Ok(Json(WebhookResult {
