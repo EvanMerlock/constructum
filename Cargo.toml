@@ -18,7 +18,7 @@ sqlx = { version = "0.6", features = [ "runtime-tokio-native-tls", "postgres", "
 serde_yaml = "0.9.17"
 toml = "0.7.1"
 envy = "0.4.2"
-rust-s3 = "0.32.3"
+rust-s3 = { version = "0.32.3", features = [ "default", "no-verify-ssl" ] }
 axum-macros = "0.3.3"
 
 [dependencies.uuid]

@@ -40,7 +40,7 @@ pub async fn get_pipeline_file(root: &Path, repo_location: String, repo_name: St
     read_pipeline_file(root, repo_name).await
 }
 
-pub async fn pull_repository(root: &Path, repo_location: String, repo_name: String, commit_hash: String) -> Result<tokio::fs::File, GitError> {
+pub async fn pull_repository(root: &Path, repo_location: String, repo_name: String, commit_hash: String) -> Result<(tokio::fs::File, PathBuf), GitError> {
     let pipeline_file_location = create_repo_directory(root, repo_name.clone()).await?;
     // clone repo
     fetch_repo(&pipeline_file_location, &repo_location).await?;
@@ -50,7 +50,7 @@ pub async fn pull_repository(root: &Path, repo_location: String, repo_name: Stri
     git_detach_repo.current_dir(&pipeline_file_location);
     git_detach_repo.spawn()?.wait().await?;
 
-    read_pipeline_file(root, repo_name).await
+    read_pipeline_file(root, repo_name).await.map(|x| (x, pipeline_file_location))
 }
  
 async fn fetch_repo(pipeline_file_location: &Path, repo_location: &str) -> Result<(), GitError> {
@@ -59,15 +59,18 @@ async fn fetch_repo(pipeline_file_location: &Path, repo_location: &str) -> Resul
     git_init_repo.current_dir(pipeline_file_location);
     git_init_repo.spawn()?.wait().await?;
 
+
     let mut git_add_remote_repo = tokio::process::Command::new("git");
     git_add_remote_repo.args(["remote", "add", "origin", repo_location]);
     git_add_remote_repo.current_dir(pipeline_file_location);
     git_add_remote_repo.spawn()?.wait().await?;
 
+
     let mut git_fetch_repo = tokio::process::Command::new("git");
     git_fetch_repo.args(["fetch", "--tags", "--depth", "100", "origin"]);
     git_fetch_repo.current_dir(pipeline_file_location);
     git_fetch_repo.spawn()?.wait().await?;
+
 
     Ok(())
 }

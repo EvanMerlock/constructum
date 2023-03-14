@@ -65,10 +65,10 @@ pub async fn webhook(
     task::spawn(async move {
         let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
         let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
-        let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::is_job_completed()).await.expect("failed to wait on task");
+        let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
 
         // record results
-        put_pod_logs_to_s3(format!("{pipeline_client_name}-pod"), pipeline_client_name.to_string(), state.s3_bucket).await.expect("failed to put pod logs to s3");
+        put_pod_logs_to_s3(pipeline_client_name.clone(), pipeline_client_name.to_string(), state.s3_bucket).await.expect("failed to put pod logs to s3");
 
         // clean up client job
         jobs.delete(&pipeline_client_name, &DeleteParams::default()).await.expect("failed to delete job");

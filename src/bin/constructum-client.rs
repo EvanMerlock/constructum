@@ -2,7 +2,7 @@
 use axum::{
     routing::{get}, Router,
 };
-use constructum::{client::{execute_pipeline, create_client_job, ConstructumClientError}, config::Config};
+use constructum::{client::{create_client_job, ConstructumClientError}, config::Config};
 
 use std::net::SocketAddr;
 
@@ -15,19 +15,19 @@ async fn main() -> Result<(), ConstructumClientError> {
         Err(err) => panic!("{err:#?}"),
     };
 
-    let app = Router::new()
-        .route("/", get(constructum::root));
+    // let app = Router::new()
+    //     .route("/", get(constructum::root));
 
-    let task = tokio::spawn(async {
-        create_client_job(config).await
-    });
+    tokio::spawn(async {
+        create_client_job(config).await.expect("failed to exec client job")
+    }).await.expect("failed to spawn job");
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    tracing::debug!("listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    // tracing::debug!("listening on {}", addr);
+    // axum::Server::bind(&addr)
+    //     .serve(app.into_make_service())
+    //     .await
+    //     .unwrap();
 
     Ok(())
 }
