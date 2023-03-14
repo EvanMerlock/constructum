@@ -19,8 +19,10 @@ async fn main() -> Result<(), ConstructumConfigError> {
     let (pool, bucket) = constructum::config::build_postgres_and_s3(config).await?;
 
     let app = Router::new()
-        .route("/", get(constructum::root))
+        .route("/health", get(constructum::health))
         .route("/webhook", post(constructum::webhook::webhook))
+        .route("/job", get(constructum::server::list_jobs))
+        .route("/job/:job_id", get(constructum::server::get_job))
         .with_state(ConstructumState::new(pool, bucket, container_name));
     
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

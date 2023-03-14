@@ -5,6 +5,7 @@ pub mod webhook;
 pub mod pipeline;
 pub mod config;
 pub mod client;
+pub mod server;
 mod git;
 mod kube;
 
@@ -21,6 +22,6 @@ impl ConstructumState {
     }
 }
 
-pub async fn root() -> &'static str {
-    "Constructum Root"
+pub async fn health() -> &'static str {
+    "Ok"
 }

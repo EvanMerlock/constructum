@@ -6,10 +6,11 @@ use kube::{
     api::{PostParams, LogParams, DeleteParams},
     Api, runtime::wait::{await_condition, conditions},
 };
+use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncReadExt, task};
 use uuid::Uuid;
 
-use crate::{git, pipeline::Pipeline, ConstructumState, kube::{build_client_pvc, put_pod_logs_to_s3}};
+use crate::{git, pipeline::Pipeline, ConstructumState, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job}};
 
 use self::{error::ConstructumWebhookError, payload::GitWebhookPayload};
 
@@ -20,7 +21,7 @@ pub mod payload;
 pub async fn webhook(
     State(state): State<ConstructumState>,
     Json(payload): Json<GitWebhookPayload>,
-) -> axum::response::Result<(), ConstructumWebhookError> {
+) -> axum::response::Result<Json<WebhookResult>, ConstructumWebhookError> {
     let mut pipeline_file = git::get_pipeline_file(
         Path::new("E:\\Code\\.constructum\\build_cache"),
         payload.repository.html_url.clone(),
@@ -68,11 +69,23 @@ pub async fn webhook(
         let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
 
         // record results
-        put_pod_logs_to_s3(pipeline_client_name.clone(), pipeline_client_name.to_string(), state.s3_bucket).await.expect("failed to put pod logs to s3");
+        match put_pod_logs_to_s3(pipeline_client_name.clone(), pipeline_client_name.to_string(), state.s3_bucket).await {
+            Ok(()) => {},
+            Err(e) => {
+                println!("{e}");
+            }
+        };
 
         // clean up client job
-        jobs.delete(&pipeline_client_name, &DeleteParams::default()).await.expect("failed to delete job");
+        delete_job(&pipeline_client_name).await.expect("failed to delete job");
     });
 
-    Ok(())
+    Ok(Json(WebhookResult {
+        job_uuid: pipeline_uuid
+    }))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WebhookResult {
+    job_uuid: Uuid,
 }

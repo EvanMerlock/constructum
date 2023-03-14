@@ -6,7 +6,7 @@ use sqlx::{postgres::PgRow, Row};
 use super::{PipelineStatus, Pipeline};
 
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct JobInfo {
     pub job_uuid: Uuid,
     pub repo_url: String,

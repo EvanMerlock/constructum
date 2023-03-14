@@ -16,7 +16,10 @@ pub fn build_client_pvc(pipeline_uuid: Uuid) -> Result<PersistentVolumeClaim, se
             "namespace": "constructum",
             "annotations": {
                 "volume.beta.kubernetes.io/storage-class": "nfs-ephemeral-client"
-            }
+            },
+            "labels": {
+                "constructum-pipeline": format!("{pipeline_uuid}")
+            },
         },
         "spec": {
             "accessModes": [ "ReadWriteMany" ],
@@ -145,6 +148,19 @@ pub async fn delete_job(job_name: &str) -> Result<(), kube::Error> {
     }
 
     jobs.delete(job_name, &DeleteParams::background()).await?;
+
+    Ok(())
+}
+
+pub async fn delete_pvc(pipeline_uuid: &str) -> Result<(), kube::Error> {
+    let k8s_client = kube::Client::try_default().await?;
+
+    let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(k8s_client, "constructum");
+
+    let params = ListParams::default().labels(&format!("constructum-pipeline={pipeline_uuid}"));
+    for pvc in pvcs.list(&params).await? {
+        pvcs.delete(&pvc.metadata.name.expect("failed to pull pvc name"), &DeleteParams::background()).await?;
+    }
 
     Ok(())
 }
