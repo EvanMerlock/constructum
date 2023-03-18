@@ -1,12 +1,12 @@
 use std::{path::{Path, PathBuf}, str::FromStr};
 
 use k8s_openapi::api::{batch::v1::Job};
-use kube::{Api, api::{PostParams, DeleteParams}, runtime::wait::{Condition, conditions}};
+use kube::{Api, api::{PostParams}, runtime::wait::{conditions}};
 use s3::Bucket;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, JobContents}, config::{Config, self}, git, ConstructumState, kube::{put_pod_logs_to_s3, delete_job}};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, JobContents}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}};
 
 mod error;
 

@@ -1,23 +1,22 @@
 use axum::{extract::State, Json};
 use uuid::Uuid;
 
-use crate::{ConstructumState, pipeline::JobInfo, server::error::ConstructumServerError};
+use crate::{ConstructumState, pipeline::{JobInfo}, server::error::ConstructumServerError};
 
-mod error;
+pub(crate) mod error;
+mod job_spawning;
+mod job_db;
+
+pub use self::job_spawning::*;
+pub use self::job_db::*;
 
 #[axum_macros::debug_handler]
 pub async fn list_jobs(
     State(state): State<ConstructumState>
 ) -> Result<Json<Vec<JobInfo>>, ConstructumServerError> {
 
-    let pipeline_info: Vec<JobInfo> = {
-        // retrieve pipeline info from Postgres
-        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
-        let mut sql_connection = state.postgres.acquire().await?;
-        sqlx::query_as("SELECT * FROM constructum.jobs")
-            .fetch_all(&mut sql_connection).await?
-    };
-    
+    let pipeline_info = job_db::db_list_jobs(state.postgres).await?;
+
     Ok(Json(pipeline_info))
 }
 
@@ -27,14 +26,7 @@ pub async fn get_job(
     axum::extract::Path(job_id): axum::extract::Path<Uuid> ,
 ) -> Result<Json<JobInfo>, ConstructumServerError> {
 
-    let pipeline_info: JobInfo = {
-        // retrieve pipeline info from Postgres
-        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
-        let mut sql_connection = state.postgres.acquire().await?;
-        sqlx::query_as("SELECT * FROM constructum.jobs WHERE id = $1")
-            .bind(job_id)
-            .fetch_one(&mut sql_connection).await?
-    };
+    let pipeline_info = job_db::db_get_job(job_id, state.postgres).await?;
     
     Ok(Json(pipeline_info))
 }
