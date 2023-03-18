@@ -15,19 +15,20 @@ async fn main() -> Result<(), ConstructumClientError> {
         Err(err) => panic!("{err:#?}"),
     };
 
-    // let app = Router::new()
-    //     .route("/", get(constructum::root));
+    let app = Router::new()
+        .route("/health", get(constructum::health));
 
-    tokio::spawn(async {
-        create_client_job(config).await.expect("failed to exec client job")
-    }).await.expect("failed to spawn job");
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    tracing::debug!("listening on {}", addr);
 
-    // let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    // tracing::debug!("listening on {}", addr);
-    // axum::Server::bind(&addr)
-    //     .serve(app.into_make_service())
-    //     .await
-    //     .unwrap();
+    tokio::select! {
+        result = create_client_job(config) => {
+            result.expect("failed to execute client job");
+        }
+        _ = axum::Server::bind(&addr).serve(app.into_make_service()) => {
+            println!("web server job done");
+        }
+    }
 
     Ok(())
 }

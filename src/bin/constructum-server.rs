@@ -23,7 +23,7 @@ async fn main() -> Result<(), ConstructumConfigError> {
     let app = Router::new()
         .route("/health", get(constructum::health))
         .route("/webhook", post(constructum::webhook::webhook))
-        .route("/jobs/", get(constructum::server::list_jobs))
+        .route("/jobs", get(constructum::server::list_jobs))
         .route("/job/:job_id", get(constructum::server::get_job))
         .with_state(ConstructumState::new(pool.clone(), bucket.clone(), container_name.clone()));
     

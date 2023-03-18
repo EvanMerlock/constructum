@@ -23,6 +23,13 @@ impl CreateJobPayload {
 }
 
 pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> Result<Uuid, ConstructumServerError> {
+    let pipeline_uuid = record_new_job_to_sql(payload, state.clone()).await?;
+    assign_job_to_k8s(pipeline_uuid, state).await?;
+
+    Ok(pipeline_uuid)
+}
+
+async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumState) -> Result<Uuid, ConstructumServerError> {
     let mut pipeline_file = git::get_pipeline_file(
         Path::new("E:\\Code\\.constructum\\build_cache"),
         payload.html_url.clone(),
@@ -37,8 +44,6 @@ pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> R
     println!("{pipeline:?}");
 
     let pipeline_uuid = Uuid::new_v4();
-    let pipeline_name = format!("pipeline-{pipeline_uuid}");
-    let pipeline_client_name = format!("{pipeline_name}-client");
     
     {
         // record pipeline in SQL.
@@ -51,6 +56,13 @@ pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> R
             .bind(&payload.commit_hash)
             .execute(&mut sql_connection).await?;
     }
+
+    Ok(pipeline_uuid)
+}
+
+async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumState) -> Result<(), ConstructumServerError> {
+    let pipeline_name = format!("pipeline-{pipeline_uuid}");
+    let pipeline_client_name = format!("{pipeline_name}-client");
 
     // create PVC on server process
     let k8s_client = kube::Client::try_default().await?;
@@ -68,7 +80,7 @@ pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> R
         server_job(pipeline_client_name, pipeline_uuid, state.s3_bucket).await;
     });
 
-    Ok(pipeline_uuid)
+    Ok(())
 }
 
 async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, s3_bucket: Bucket) {
@@ -95,8 +107,7 @@ pub async fn restart_unfinished_jobs(state: ConstructumState) -> Result<(), Cons
     // restart first N jobs, where N is defined by TODO: config
     unfinished_jobs.truncate(1);
     for unfinished in unfinished_jobs {
-        let cjp = CreateJobPayload::new(unfinished.repo_url, unfinished.repo_name, unfinished.commit_id);
-        create_job(cjp, state.clone()).await?;
+        assign_job_to_k8s(unfinished.job_uuid, state.clone()).await?;
     }
     Ok(())
 }
