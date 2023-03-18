@@ -5,7 +5,7 @@ use axum::{
 use constructum::{config::{Config, ConstructumConfigError}, ConstructumState, server::restart_unfinished_jobs};
 use tokio_cron_scheduler::{JobScheduler, Job};
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), ConstructumConfigError> {
@@ -23,14 +23,14 @@ async fn main() -> Result<(), ConstructumConfigError> {
     let app = Router::new()
         .route("/health", get(constructum::health))
         .route("/webhook", post(constructum::webhook::webhook))
-        .route("/job", get(constructum::server::list_jobs))
+        .route("/jobs/", get(constructum::server::list_jobs))
         .route("/job/:job_id", get(constructum::server::get_job))
         .with_state(ConstructumState::new(pool.clone(), bucket.clone(), container_name.clone()));
     
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
 
-    sched.add(Job::new_async("* 1/5 * * * * *", move |_uuid, _l| {
+    sched.add(Job::new_repeated_async(Duration::from_secs(300), move |_uuid, _l| {
         let (clone_pool, clone_bucket) = (pool.clone(), bucket.clone());
         Box::pin(async move {
             println!("restarting an unfinished job");
