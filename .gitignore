@@ -1,2 +1,4 @@
 /target
 /Cargo.lock
+/k8s-manifests
+.env
