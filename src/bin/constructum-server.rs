@@ -20,21 +20,23 @@ async fn main() -> Result<(), ConstructumConfigError> {
     let container_name = config.container_name.clone();
     let (pool, bucket) = constructum::config::build_postgres_and_s3(config).await?;
 
+    let state = ConstructumState::new(pool, bucket, container_name);
+
     let app = Router::new()
         .route("/health", get(constructum::health))
         .route("/webhook", post(constructum::webhook::webhook))
         .route("/jobs", get(constructum::server::list_jobs))
         .route("/job/:job_id", get(constructum::server::get_job))
-        .with_state(ConstructumState::new(pool.clone(), bucket.clone(), container_name.clone()));
+        .with_state(state.clone());
     
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);
 
     sched.add(Job::new_repeated_async(Duration::from_secs(300), move |_uuid, _l| {
-        let (clone_pool, clone_bucket) = (pool.clone(), bucket.clone());
+        let cloned_state = state.clone();
         Box::pin(async move {
             println!("restarting an unfinished job");
-            restart_unfinished_jobs(ConstructumState::new(clone_pool, clone_bucket, container_name)).await.expect("Failed to restart unfinished jobs");
+            restart_unfinished_jobs(cloned_state).await.expect("Failed to restart unfinished jobs");
         }) 
     }).expect("failed to build job")).await.expect("failed to schedule job");
 
