@@ -2,7 +2,7 @@ pub mod db {
     use sqlx::PgPool;
     use uuid::Uuid;
     
-    use crate::{pipeline::JobInfo, server::CreateJobPayload};
+    use crate::{pipeline::{JobInfo, JobContents}, server::CreateJobPayload};
     
     pub async fn list_jobs(
         pool: PgPool,
@@ -63,6 +63,14 @@ pub mod db {
             .bind(&payload.name)
             .bind(&payload.commit_hash)
             .execute(&mut sql_connection).await?;
+        Ok(())
+    }
+
+    pub async fn complete_job(pool: PgPool, contents: JobContents, job_id: Uuid) -> Result<(), sqlx::Error> {
+        let mut sql_connection = pool.acquire().await?;
+        sqlx::query("UPDATE constructum.jobs SET is_finished = TRUE, job_json = $1 WHERE id = $2")
+            .bind(serde_json::to_value(&contents).expect("failed to coerce pipeline"))
+            .bind(job_id).execute(&mut sql_connection).await?;
         Ok(())
     }
 }

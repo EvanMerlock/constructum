@@ -6,7 +6,7 @@ use s3::Bucket;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, JobContents}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, JobContents}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::job::db::{get_job, complete_job}};
 
 mod error;
 
@@ -18,15 +18,7 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
     
     let (pool, bucket) = config::build_postgres_and_s3(config).await?;
 
-    let pipeline_info: JobInfo = {
-        // retrieve pipeline info from Postgres
-        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
-        let mut sql_connection = pool.acquire().await?;
-        sqlx::query_as("SELECT * FROM constructum.jobs WHERE id = $1")
-            .bind(pipeline_uuid)
-            .fetch_one(&mut sql_connection).await?
-    };
-
+    let pipeline_info: JobInfo = get_job(pipeline_uuid, pool.clone()).await?;
     // begin by initializing the workspace for future jobs
     let pipeline_file = git::pull_repository(Path::new("/data/"), pipeline_info.repo_url, pipeline_info.repo_name, pipeline_info.commit_id).await?;
     let pipeline_working_directory = pipeline_file.1;
@@ -39,17 +31,12 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
 
     let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, bucket).await?;
     println!("{pipeline_status:?}");
-
-    {
-        let job_info = JobContents {
-            status: pipeline_status,
-            pipeline,
-        };
-        let mut sql_connection = pool.acquire().await?;
-        sqlx::query("UPDATE constructum.jobs SET is_finished = TRUE, job_json = $1 WHERE id = $2")
-            .bind(serde_json::to_value(&job_info).expect("failed to coerce pipeline"))
-            .bind(pipeline_info.job_uuid).execute(&mut sql_connection).await?;
-    }
+    
+    let job_info = JobContents {
+        status: pipeline_status,
+        pipeline,
+    };
+    complete_job(pool, job_info, pipeline_uuid).await?;
 
     Ok(())
 }
