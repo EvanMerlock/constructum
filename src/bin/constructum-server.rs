@@ -25,8 +25,8 @@ async fn main() -> Result<(), ConstructumConfigError> {
     let app = Router::new()
         .route("/health", get(constructum::health))
         .route("/webhook", post(constructum::webhook::webhook))
-        .route("/jobs", get(constructum::server::list_jobs))
-        .route("/job/:job_id", get(constructum::server::get_job))
+        .route("/jobs", get(constructum::server::api::job::endpoints::list_jobs))
+        .route("/job/:job_id", get(constructum::server::api::job::endpoints::get_job))
         .with_state(state.clone());
     
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

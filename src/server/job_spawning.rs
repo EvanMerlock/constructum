@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{ConstructumState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
 
-use super::{db_list_unfinished_jobs};
+use super::api::job::db::db_list_unfinished_jobs;
 
 pub struct CreateJobPayload {
     html_url: String,
