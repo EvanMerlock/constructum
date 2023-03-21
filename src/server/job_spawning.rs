@@ -7,12 +7,12 @@ use uuid::Uuid;
 
 use crate::{ConstructumState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
 
-use super::api::job::db::db_list_unfinished_jobs;
+use super::api::job::db::list_unfinished_jobs;
 
 pub struct CreateJobPayload {
-    html_url: String,
-    name: String,
-    commit_hash: String
+    pub html_url: String,
+    pub name: String,
+    pub commit_hash: String
 }
 
 impl CreateJobPayload {
@@ -44,17 +44,7 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumStat
 
     let pipeline_uuid = Uuid::new_v4();
     
-    {
-        // record pipeline in SQL.
-        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
-        let mut sql_connection = state.postgres.acquire().await?;
-        sqlx::query("INSERT INTO constructum.jobs (id, repo_url, repo_name, commit_id, is_finished, job_json) VALUES ($1, $2, $3, $4, FALSE, NULL)")
-            .bind(pipeline_uuid)
-            .bind(&payload.html_url)
-            .bind(&payload.name)
-            .bind(&payload.commit_hash)
-            .execute(&mut sql_connection).await?;
-    }
+    super::api::job::db::create_job(state.postgres, pipeline_uuid, payload).await?;
 
     Ok(pipeline_uuid)
 }
@@ -108,7 +98,7 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
 }
 
 pub async fn restart_unfinished_jobs(state: ConstructumState) -> Result<(), ConstructumServerError> {
-    let unfinished_jobs = db_list_unfinished_jobs(state.postgres.clone()).await?;
+    let unfinished_jobs = list_unfinished_jobs(state.postgres.clone()).await?;
 
     // restart first N jobs, where N is defined by TODO: config
     for unfinished in unfinished_jobs {

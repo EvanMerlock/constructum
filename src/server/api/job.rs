@@ -2,7 +2,7 @@ pub mod db {
     use sqlx::PgPool;
     use uuid::Uuid;
     
-    use crate::pipeline::JobInfo;
+    use crate::{pipeline::JobInfo, server::CreateJobPayload};
     
     pub async fn list_jobs(
         pool: PgPool,
@@ -36,7 +36,7 @@ pub mod db {
         Ok(pipeline_info)
     }
     
-    pub async fn db_list_unfinished_jobs(
+    pub async fn list_unfinished_jobs(
         pool: PgPool
     ) -> Result<Vec<JobInfo>, sqlx::Error> {
     
@@ -49,6 +49,21 @@ pub mod db {
         };
         
         Ok(pipeline_info)
+    }
+
+    pub async fn create_job(
+        pool: PgPool,
+        pipeline_uuid: Uuid,
+        payload: CreateJobPayload
+    ) -> Result<(), sqlx::Error> {
+        let mut sql_connection = pool.acquire().await?;
+        sqlx::query("INSERT INTO constructum.jobs (id, repo_url, repo_name, commit_id, is_finished, job_json) VALUES ($1, $2, $3, $4, FALSE, NULL)")
+            .bind(pipeline_uuid)
+            .bind(&payload.html_url)
+            .bind(&payload.name)
+            .bind(&payload.commit_hash)
+            .execute(&mut sql_connection).await?;
+        Ok(())
     }
 }
 
