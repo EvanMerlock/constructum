@@ -11,6 +11,7 @@ pub mod client;
 pub mod server;
 mod git;
 mod kube;
+mod s3buckets;
 
 #[derive(Clone)]
 pub struct ConstructumState {

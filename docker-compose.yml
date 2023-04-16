@@ -1,0 +1,19 @@
+version: '3.1'
+
+services:
+
+  constructum-db:
+    image: docker.io/postgres
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: mysupersecretpassword
+
+  constructum-minio:
+    image: quay.io/minio/minio
+    restart: always
+    command: ['minio', 'server', '/data', '--console-address', ':9001']
+    ports:
+      - 9001:9001
+      - 9000:9000

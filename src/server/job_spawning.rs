@@ -84,7 +84,7 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
 
     // record results
     match put_pod_logs_to_s3(pipeline_client_name.clone(), pipeline_client_name.to_string(), state.s3_bucket).await {
-        Ok(()) => {},
+        Ok(_) => {},
         Err(e) => {
             println!("{e}");
         }

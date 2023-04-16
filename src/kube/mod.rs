@@ -122,18 +122,19 @@ pub fn build_pipeline_job(job_cfg: PipelineJobConfig) -> Result<(Job, String), s
 }
 
 
-// TODO: ref pods via job controller UID
-pub async fn put_pod_logs_to_s3(job_name: String, file_name: String, s3_bucket: Bucket) -> Result<(), kube::Error> {
+pub async fn put_pod_logs_to_s3(job_name: String, file_name: String, s3_bucket: Bucket) -> Result<Vec<String>, kube::Error> {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let pods: Api<Pod> = Api::namespaced(k8s_client, "constructum");
     let params = ListParams::default().labels(&format!("job-name={job_name}"));
+    let mut log_names = Vec::new();
     for pod in pods.list(&params).await? {
         let pod_name = pod.metadata.name.expect("failed to get pod name");
         let log_string = pods.logs(&pod_name, &LogParams::default()).await.expect("failed to get job logs");
         let log_file_name = format!("{pod_name}-{file_name}.txt");
+        log_names.push(log_file_name.clone());
         s3_bucket.put_object(log_file_name, log_string.as_bytes()).await.expect("failed to write container logs to s3");
     }
-    Ok(())
+    Ok(log_names)
 }
 
 pub async fn delete_job(job_name: &str) -> Result<(), kube::Error> {

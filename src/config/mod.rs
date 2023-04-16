@@ -13,6 +13,8 @@ pub struct Config {
     pub s3_bucket: String,
     pub container_name: String,
     pub pipeline_uuid: Option<String>,
+    // only required if secrets are needed for builds
+    pub vault_server: Option<String>,
 }
 
 pub async fn build_postgres_and_s3(config: Config) -> Result<(Pool<Postgres>, Bucket), ConstructumConfigError> {

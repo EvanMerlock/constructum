@@ -6,7 +6,7 @@ use s3::Bucket;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, JobContents}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::job::db::{get_job, complete_job}};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, completed::{JobContents, CompletedPipeline, CompletedPipelineStep, StepStatus}}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::job::db::{get_job, complete_job}};
 
 mod error;
 
@@ -31,30 +31,27 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
 
     let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, bucket).await?;
     println!("{pipeline_status:?}");
-    
-    let job_info = JobContents {
-        status: pipeline_status,
-        pipeline,
-    };
-    complete_job(pool, job_info, pipeline_uuid).await?;
+
+    complete_job(pool, pipeline_status, pipeline_uuid).await?;
 
     Ok(())
 }
 
-pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pipeline_working_directory: PathBuf, bucket: Bucket) -> Result<PipelineStatus, PipelineExecError> {
+pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pipeline_working_directory: PathBuf, bucket: Bucket) -> Result<JobContents, PipelineExecError> {
         // read in stages
         let k8s_client = kube::Client::try_default().await?;
         // execute stages as jobs on k8s
     
         let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
-        for step in pipeline.steps {
-            let name = step.name;
+        let mut completed_pipeline = CompletedPipeline::new();
+        for step in pipeline.steps.clone() {
+            let name = step.name.clone();
 
             // build corrected argument string for container
 
             let mut corrected_args = Vec::new();
             corrected_args.push(String::from("-c"));
-            let fixed_arg = step.commands.into_iter().reduce(|mut acc, next| {
+            let fixed_arg = step.commands.clone().into_iter().reduce(|mut acc, next| {
                 acc.push_str(&next);
                 acc.push(';');
                 acc
@@ -66,7 +63,7 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
             let pipeline_step_config = PipelineJobConfig {
                 pipeline: pipeline_uuid.to_string(),
                 step: name.clone(),
-                container: step.image,
+                container: step.image.clone(),
                 commands: corrected_args,
                 pipeline_working_directory: pipeline_working_directory.clone(),
             };
@@ -83,7 +80,7 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
 
             // upload pod logs to S3
 
-            put_pod_logs_to_s3(data.1.clone(), data.1, bucket.clone()).await?;
+            let log_names = put_pod_logs_to_s3(data.1.clone(), data.1, bucket.clone()).await?;
 
             // check if job failed. if so, bail from pipeline with pipelinestatus::failed
 
@@ -91,13 +88,15 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
             if let Some(_pcond) = job_with_status.status.expect("failed to get job status").conditions.expect("failed to get job conditions").iter().find(|c| c.type_ == "Failed" && c.status == "True") {
                 // delete the job
                 delete_job(&pipeline_job_name).await?;
+                completed_pipeline.steps.push(CompletedPipelineStep::from_pipeline_step(&step, StepStatus::Fail, log_names));
                 
-                return Ok(PipelineStatus::Failed);
+                return Ok(JobContents { status: PipelineStatus::Failed, pipeline: completed_pipeline });
             }
 
             // delete the job
+            completed_pipeline.steps.push(CompletedPipelineStep::from_pipeline_step(&step, StepStatus::Success, log_names));
             delete_job(&pipeline_job_name).await?;
         }
 
-        Ok(PipelineStatus::Complete)
+        Ok(JobContents { status: PipelineStatus::Complete, pipeline: completed_pipeline })
 }

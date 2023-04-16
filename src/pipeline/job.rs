@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize};
 use uuid::Uuid;
 
 use sqlx::{postgres::PgRow, Row};
 
-use super::{PipelineStatus, Pipeline};
+use super::{completed::JobContents};
 
 
 #[derive(Debug, Serialize)]
@@ -36,10 +36,4 @@ impl<'r> sqlx::FromRow<'r, PgRow> for JobInfo {
             }
         )
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct JobContents {
-    pub status: PipelineStatus,
-    pub pipeline: Pipeline,
 }
