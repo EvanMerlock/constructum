@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use sqlx::{postgres::PgRow, Row};
 
-use super::{completed::JobContents};
+use super::{completed::{CompletedPipelineStep}, PipelineStatus};
 
 
 #[derive(Debug, Serialize)]
@@ -13,7 +13,8 @@ pub struct JobInfo {
     pub repo_name: String,
     pub commit_id: String,
     pub is_finished: bool,
-    pub job_json: Option<JobContents>,
+    pub status: PipelineStatus,
+    pub steps: Option<Vec<CompletedPipelineStep>>
 }
 
 impl<'r> sqlx::FromRow<'r, PgRow> for JobInfo {
@@ -23,7 +24,7 @@ impl<'r> sqlx::FromRow<'r, PgRow> for JobInfo {
         let repo_name: String = row.try_get("repo_name")?;
         let commit_id: String = row.try_get("commit_id")?;
         let is_finished: bool = row.try_get("is_finished")?;
-        let job_json: Option<sqlx::types::Json<JobContents>> = row.try_get("job_json")?;
+        let pipeline_status: String = row.try_get("status")?;
 
         Ok(
             JobInfo { 
@@ -32,7 +33,8 @@ impl<'r> sqlx::FromRow<'r, PgRow> for JobInfo {
                 repo_name,
                 commit_id, 
                 is_finished,
-                job_json: job_json.map(|x| x.0)
+                status: PipelineStatus::from(pipeline_status),
+                steps: None
             }
         )
     }

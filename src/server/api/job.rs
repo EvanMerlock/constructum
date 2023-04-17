@@ -2,19 +2,27 @@ pub mod db {
     use sqlx::{PgPool, FromRow};
     use uuid::Uuid;
     
-    use crate::{pipeline::{JobInfo, completed::JobContents}, server::{CreateJobPayload}};
+    use crate::{pipeline::{JobInfo, PipelineStatus}, server::{CreateJobPayload, api::step}};
     
     pub async fn list_jobs(
         pool: PgPool,
     ) -> Result<Vec<JobInfo>, sqlx::Error> {
+
+        // TODO: steps are misordered. add ordering to step table
     
-        let pipeline_info: Vec<JobInfo> = {
+        let mut pipeline_info: Vec<JobInfo> = {
             // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
             let mut sql_connection = pool.acquire().await?;
             sqlx::query_as("SELECT * FROM constructum.jobs")
                 .fetch_all(&mut sql_connection).await?
         };
+
+        // TODO: this is bad. JOIN
+        for info in pipeline_info.iter_mut() {
+            let pipeline_step_info = step::db::list_steps_for_job(pool.clone(), info.job_uuid).await?;
+            info.steps = Some(pipeline_step_info);
+        }
         
         Ok(pipeline_info)
     }
@@ -24,7 +32,7 @@ pub mod db {
         pool: PgPool,
     ) -> Result<JobInfo, sqlx::Error> {
     
-        let pipeline_info: JobInfo = {
+        let mut pipeline_info: JobInfo = {
             // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
             let mut sql_connection = pool.acquire().await?;
@@ -32,6 +40,9 @@ pub mod db {
                 .bind(job_id)
                 .fetch_one(&mut sql_connection).await?
         };
+
+        let pipeline_step_info = step::db::list_steps_for_job(pool, pipeline_info.job_uuid).await?;
+        pipeline_info.steps = Some(pipeline_step_info);
         
         Ok(pipeline_info)
     }
@@ -40,13 +51,20 @@ pub mod db {
         pool: PgPool
     ) -> Result<Vec<JobInfo>, sqlx::Error> {
     
-        let pipeline_info: Vec<JobInfo> = {
+        let mut pipeline_info: Vec<JobInfo> = {
             // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
             let mut sql_connection = pool.acquire().await?;
             sqlx::query_as("SELECT * FROM constructum.jobs WHERE is_finished = FALSE")
                 .fetch_all(&mut sql_connection).await?
         };
+
+        // TODO: this is bad. JOIN
+        for info in pipeline_info.iter_mut() {
+            let pipeline_step_info = step::db::list_steps_for_job(pool.clone(), info.job_uuid).await?;
+            info.steps = Some(pipeline_step_info);
+        }
+        
         
         Ok(pipeline_info)
     }
@@ -57,7 +75,7 @@ pub mod db {
         payload: CreateJobPayload
     ) -> Result<(), sqlx::Error> {
         let mut sql_connection = pool.acquire().await?;
-        sqlx::query("INSERT INTO constructum.jobs (id, repo_url, repo_name, commit_id, is_finished, job_json) VALUES ($1, $2, $3, $4, FALSE, NULL)")
+        sqlx::query("INSERT INTO constructum.jobs (id, repo_url, repo_name, commit_id, is_finished, status) VALUES ($1, $2, $3, $4, FALSE, 'InProgress')")
             .bind(pipeline_uuid)
             .bind(&payload.html_url)
             .bind(&payload.name)
@@ -66,10 +84,10 @@ pub mod db {
         Ok(())
     }
 
-    pub async fn complete_job(pool: PgPool, contents: JobContents, job_id: Uuid) -> Result<(), sqlx::Error> {
+    pub async fn complete_job(pool: PgPool, status: PipelineStatus, job_id: Uuid) -> Result<(), sqlx::Error> {
         let mut sql_connection = pool.acquire().await?;
-        sqlx::query("UPDATE constructum.jobs SET is_finished = TRUE, job_json = $1 WHERE id = $2")
-            .bind(serde_json::to_value(&contents).expect("failed to coerce pipeline"))
+        sqlx::query("UPDATE constructum.jobs SET is_finished = TRUE, status = $1 WHERE id = $2")
+            .bind(Into::<&str>::into(&status))
             .bind(job_id).execute(&mut sql_connection).await?;
         Ok(())
     }

@@ -4,8 +4,30 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone, Copy)]
 pub enum PipelineStatus {
+    InProgress,
     Complete,
     Failed
+}
+
+impl<'a> Into<&'a str> for &'a PipelineStatus {
+    fn into(self) -> &'a str {
+        match self {
+            PipelineStatus::InProgress => "InProgress",
+            PipelineStatus::Complete => "Complete",
+            PipelineStatus::Failed => "Failed",
+        }
+    }
+}
+
+impl From<String> for PipelineStatus {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "InProgress" => PipelineStatus::InProgress,
+            "Complete" => PipelineStatus::Complete,
+            "Failed" => PipelineStatus::Failed,
+            _ => panic!("invalid PipelineStatus")
+        }
+    }
 }
 
 

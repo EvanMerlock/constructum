@@ -68,6 +68,7 @@ pub enum PipelineExecError {
     KubernetesError(kube::Error),
     JsonEncodeError(serde_json::Error),
     KubeRuntimeWaitError(kube::runtime::wait::Error),
+    SqlError(sqlx::Error)
 }
 
 impl Display for PipelineExecError {
@@ -76,6 +77,7 @@ impl Display for PipelineExecError {
             PipelineExecError::KubernetesError(kerr) => write!(f, "Pipeline Error: Kube Error: {kerr}"),
             PipelineExecError::JsonEncodeError(jsone) => write!(f, "Pipeline Error: JSON Encode Error: {jsone}"),
             PipelineExecError::KubeRuntimeWaitError(krwe) => write!(f, "Pipeline Error: Kube Runtime Wait Error: {krwe}"),
+            PipelineExecError::SqlError(sqle) => write!(f, "Pipeline Error: SQL Error: {sqle}"),
         }
     }
 }
@@ -97,5 +99,11 @@ impl From<serde_json::Error> for PipelineExecError {
 impl From<kube::runtime::wait::Error> for PipelineExecError {
     fn from(value: kube::runtime::wait::Error) -> Self {
         PipelineExecError::KubeRuntimeWaitError(value)
+    }
+}
+
+impl From<sqlx::Error> for PipelineExecError {
+    fn from(value: sqlx::Error) -> Self {
+        PipelineExecError::SqlError(value)
     }
 }
