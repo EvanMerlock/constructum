@@ -1,21 +1,14 @@
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, postgres::PgRow, Row};
 
-use super::{PipelineStep};
-
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct CompletedPipelineStep {
     pub name: String,
+    pub step_number: i32,
     pub image: String,
     pub commands: Vec<String>,
     pub status: StepStatus,
     pub log_key: Option<Vec<String>>,
-}
-
-impl CompletedPipelineStep {
-    pub fn from_pipeline_step(pl_step: &PipelineStep, pl_status: StepStatus, log_names: Vec<String>) -> CompletedPipelineStep {
-        CompletedPipelineStep { name: pl_step.name.clone(), image: pl_step.image.clone(), commands: pl_step.commands.clone(), status: pl_status, log_key: Some(log_names) }
-    }
 }
 
 impl<'r> FromRow<'r, PgRow> for CompletedPipelineStep {
@@ -24,11 +17,12 @@ impl<'r> FromRow<'r, PgRow> for CompletedPipelineStep {
         // let job_uuid: Uuid = row.try_get("job")?;
         let name: String = row.try_get("name")?;    
         let image: String = row.try_get("image")?;
+        let step_num: i32 = row.try_get("step_seq")?;
         let commands: Vec<String> = row.try_get("commands")?;
         let status = StepStatus::from_row(row)?;
         let log_keys: Option<Vec<String>> = row.try_get("log_keys")?;
         Ok(
-            CompletedPipelineStep { name, image, commands, status, log_key: log_keys }
+            CompletedPipelineStep { name, step_number: step_num, image, commands, status, log_key: log_keys }
         )
     }
 }

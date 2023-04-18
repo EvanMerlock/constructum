@@ -12,6 +12,7 @@ CREATE TABLE constructum.jobs (
 CREATE TABLE constructum.steps (
     id UUID PRIMARY KEY,
     job UUID REFERENCES constructum.jobs NOT NULL,
+    step_seq INTEGER NOT NULL,
     name TEXT NOT NULL,
     image TEXT NOT NULL,
     commands TEXT[] NOT NULL,

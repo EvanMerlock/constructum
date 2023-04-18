@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, completed::{StepStatus}}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::{job::db::{get_job, complete_job}, self, step}, ConstructumState};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, completed::StepStatus}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::{job::db::{get_job, complete_job}, self}};
 
 mod error;
 
@@ -44,8 +44,8 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
         // execute stages as jobs on k8s
 
         let mut steps = Vec::new();
-        for step in pipeline.steps.clone() {
-            let step_uuid = api::step::db::insert_step(pool.clone(), pipeline_uuid, &step).await?;
+        for (step_num, step) in pipeline.steps.clone().into_iter().enumerate() {
+            let step_uuid = api::step::db::insert_step(pool.clone(), pipeline_uuid, i32::try_from(step_num).expect("failed to convert step num"), &step).await?;
             steps.push((step_uuid, step));
         }
 

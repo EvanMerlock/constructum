@@ -8,7 +8,7 @@ pub mod db {
         pool: PgPool
     ) -> Result<Vec<CompletedPipelineStep>, sqlx::Error> {
         let steps: Vec<CompletedPipelineStep> = {
-                        // retrieve pipeline info from Postgres
+            // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
             let mut sql_connection = pool.acquire().await?;
             sqlx::query_as("SELECT * FROM constructum.steps")
@@ -22,7 +22,7 @@ pub mod db {
         pool: PgPool,
         job_id: Uuid
     ) -> Result<Vec<CompletedPipelineStep>, sqlx::Error> {
-        let steps: Vec<CompletedPipelineStep> = {
+        let mut steps: Vec<CompletedPipelineStep> = {
             // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
             let mut sql_connection = pool.acquire().await?;
@@ -30,6 +30,7 @@ pub mod db {
                 .bind(job_id)
                 .fetch_all(&mut sql_connection).await?
         };
+        steps.sort_by(|left: &CompletedPipelineStep, right: &CompletedPipelineStep| left.step_number.partial_cmp(&right.step_number).expect("failed to sort steps"));
 
         Ok(steps)
     }
@@ -37,13 +38,15 @@ pub mod db {
     pub async fn insert_step(
         pool: PgPool,
         job_id: Uuid,
+        step_num: i32,
         step: &PipelineStep
     ) -> Result<Uuid, sqlx::Error> {
         let mut sql_connection = pool.acquire().await?;
         let step_id = Uuid::new_v4();
-        sqlx::query("INSERT INTO constructum.steps (id, job, name, image, commands, status, log_keys) VALUES ($1, $2, $3, $4, $5, $6, array[]::TEXT[])")
+        sqlx::query("INSERT INTO constructum.steps (id, job, step_seq, name, image, commands, status, log_keys) VALUES ($1, $2, $3, $4, $5, $6, $7, array[]::TEXT[])")
             .bind(step_id)
             .bind(job_id)
+            .bind(step_num)
             .bind(&step.name)
             .bind(&step.image)
             .bind(&step.commands)

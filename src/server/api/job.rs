@@ -6,10 +6,7 @@ pub mod db {
     
     pub async fn list_jobs(
         pool: PgPool,
-    ) -> Result<Vec<JobInfo>, sqlx::Error> {
-
-        // TODO: steps are misordered. add ordering to step table
-    
+    ) -> Result<Vec<JobInfo>, sqlx::Error> {    
         let mut pipeline_info: Vec<JobInfo> = {
             // retrieve pipeline info from Postgres
             // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
