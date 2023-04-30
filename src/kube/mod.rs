@@ -1,11 +1,18 @@
+use std::path::PathBuf;
+
 use k8s_openapi::api::{batch::v1::Job, core::v1::{PersistentVolumeClaim, Pod}};
 use kube::{Api, api::{LogParams, ListParams, DeleteParams}};
 use s3::Bucket;
+use serde::{Serialize, Deserialize};
+use tokio::{fs::File, io::AsyncReadExt};
 use uuid::Uuid;
 
 pub mod utils;
+mod secret;
 
-use crate::pipeline::PipelineJobConfig;
+pub use self::secret::*;
+
+use crate::{pipeline::{PipelineJobConfig}, client::PipelineExecError};
 
 pub fn build_client_pvc(pipeline_uuid: Uuid) -> Result<PersistentVolumeClaim, serde_json::Error> {
     serde_json::from_value(serde_json::json!({
@@ -33,12 +40,13 @@ pub fn build_client_pvc(pipeline_uuid: Uuid) -> Result<PersistentVolumeClaim, se
     }))
 }
 
-pub fn build_client_job(pipeline_uuid: Uuid, pipeline_client_name: String, container_name: String) -> Result<Job, serde_json::Error> {
+pub fn build_client_job(pipeline_uuid: Uuid, pipeline_client_name: String, container_name: String, service_account_name: Option<String>) -> Result<Job, serde_json::Error> {
     serde_json::from_value(serde_json::json!({
         "apiVersion": "batch/v1",
         "kind": "Job",
         "metadata": {
             "name": pipeline_client_name,
+            "namespace": "constructum",
         },
         "spec": {
             "backoffLimit": 0,
@@ -47,6 +55,7 @@ pub fn build_client_job(pipeline_uuid: Uuid, pipeline_client_name: String, conta
                     "name": format!("{pipeline_client_name}-pod"),
                 },
                 "spec": {
+                    "serviceAccountName": service_account_name,
                     "containers": [{
                         "name": format!("{pipeline_client_name}-container"),
                         "image": container_name,
@@ -63,42 +72,76 @@ pub fn build_client_job(pipeline_uuid: Uuid, pipeline_client_name: String, conta
                                 "value": pipeline_uuid.to_string(),
                             }
                         ],
-                        "volumeMounts": [{
-                            "mountPath": "/data",
-                            "name": "data-pvc"
-                        }]
+                        "volumeMounts": [
+                            {
+                                "mountPath": "/data",
+                                "name": "data-pvc"
+                            },
+                            {
+                                "mountPath": "/var/run/secrets/tokens",
+                                "name": "vault-token"
+                            }
+                        ]
                     }],
-                    "volumes": [{
-                        "name": "data-pvc",
-                        "persistentVolumeClaim": {
-                            "claimName": format!("pipeline-{pipeline_uuid}-pvc")
+                    "volumes": [
+                        {
+                            "name": "data-pvc",
+                            "persistentVolumeClaim": {
+                                "claimName": format!("pipeline-{pipeline_uuid}-pvc")
+                            }
+                        },
+                        {
+                            "name": "vault-token",
+                            "projected": {
+                                "sources": [{
+                                    "serviceAccountToken": {
+                                        "path": "vault-token",
+                                        "expirationSeconds": 7200,
+                                        "audience": "vault",
+                                    }
+                                }]
+                            }
                         }
-                    }],
+                    ],
                     "restartPolicy": "Never",
-                    "serviceAccount": "constructum-client-build",
                 }
             }
         }
     }))
 }
 
-pub fn build_pipeline_job(job_cfg: PipelineJobConfig) -> Result<(Job, String), serde_json::Error> {
+pub fn build_pipeline_job(job_cfg: PipelineJobConfig) -> Result<(Job, String, String), serde_json::Error> {
+    // TODO: this might exceed the k8s resource limit. re-encode the uuid.
     let pipeline_job_name = format!("pipeline-{}-{}", job_cfg.pipeline, job_cfg.step);
+    let sa_name = match job_cfg.annotations.is_some() {
+        true => Some("constructum-client-build"),
+        false => None,
+    };
+    let secret_env_from = match job_cfg.annotations.is_some() {
+        true => Some(job_cfg.annotations.unwrap().to_serde_values()),
+        false => None,
+    };
+
+    let container_name = format!("{}-container", job_cfg.step);
+
     Ok((serde_json::from_value(serde_json::json!({
         "apiVersion": "batch/v1",
         "kind": "Job",
         "metadata": {
             "name": pipeline_job_name,
+            "namespace": "constructum",
         },
         "spec": {
             "backoffLimit": 0,
             "template": {
                 "metadata": {
-                    "name": format!("{pipeline_job_name}-pod")
+                    "name": format!("{pipeline_job_name}-pod"),
+                    "annotations": secret_env_from,
                 },
                 "spec": {
+                    "serviceAccountName": sa_name,
                     "containers": [{
-                        "name": format!("{pipeline_job_name}-container"),
+                        "name": container_name,
                         "image": job_cfg.container,
                         "volumeMounts": [{
                             "mountPath": "/data",
@@ -118,18 +161,20 @@ pub fn build_pipeline_job(job_cfg: PipelineJobConfig) -> Result<(Job, String), s
                 }
             }
         }
-    }))?, pipeline_job_name))
+    }))?, pipeline_job_name, container_name))
 }
 
-
-pub async fn put_pod_logs_to_s3(job_name: String, file_name: String, s3_bucket: Bucket) -> Result<Vec<String>, kube::Error> {
+pub async fn put_pod_logs_to_s3(job_name: String, container_name: Option<String>, file_name: String, s3_bucket: Bucket) -> Result<Vec<String>, kube::Error> {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let pods: Api<Pod> = Api::namespaced(k8s_client, "constructum");
     let params = ListParams::default().labels(&format!("job-name={job_name}"));
     let mut log_names = Vec::new();
     for pod in pods.list(&params).await? {
         let pod_name = pod.metadata.name.expect("failed to get pod name");
-        let log_string = pods.logs(&pod_name, &LogParams::default()).await.expect("failed to get job logs");
+        // this may fail due to k8s errors?
+        let mut lp = LogParams::default();
+        lp.container = container_name.clone();        
+        let log_string = pods.logs(&pod_name, &lp).await?;
         let log_file_name = format!("{pod_name}-{file_name}.txt");
         log_names.push(log_file_name.clone());
         s3_bucket.put_object(log_file_name, log_string.as_bytes()).await.expect("failed to write container logs to s3");
@@ -164,4 +209,45 @@ pub async fn delete_pvc(pipeline_uuid: &str) -> Result<(), kube::Error> {
     }
 
     Ok(())
+}
+
+pub async fn read_kubernetes_token(vault_url: String, location: PathBuf) -> Result<String, PipelineExecError> {
+    let mut fs = File::open(location).await?;
+
+    let mut var = String::new();
+
+    fs.read_to_string(&mut var).await?;
+
+    let http_client = reqwest::ClientBuilder::new();
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct VaultTokenPayload {
+        jwt: String,
+        role: String
+    }
+
+    let http_client = http_client.build()?;
+    let req = http_client
+        .post(format!("{vault_url}/v1/auth/kubernetes/login"))
+        .json(&VaultTokenPayload {
+            jwt: var,
+            role: String::from("constructum-validate"),
+        })
+        .build()?;
+    let resp = http_client.execute(req).await?;
+
+    #[derive(Debug, Serialize, Deserialize)]
+
+    struct VaultTokenAuthResponse {
+        client_token: String,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct VaultTokenResponse {
+        auth: VaultTokenAuthResponse
+    }
+
+    let tok = resp.json::<VaultTokenResponse>().await?;
+
+    Ok(tok.auth.client_token)
 }

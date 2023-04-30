@@ -68,7 +68,10 @@ pub enum PipelineExecError {
     KubernetesError(kube::Error),
     JsonEncodeError(serde_json::Error),
     KubeRuntimeWaitError(kube::runtime::wait::Error),
-    SqlError(sqlx::Error)
+    SqlError(sqlx::Error),
+    InvalidSecretConfiguration,
+    ReqwestError(reqwest::Error),
+    IOError(std::io::Error),
 }
 
 impl Display for PipelineExecError {
@@ -78,6 +81,9 @@ impl Display for PipelineExecError {
             PipelineExecError::JsonEncodeError(jsone) => write!(f, "Pipeline Error: JSON Encode Error: {jsone}"),
             PipelineExecError::KubeRuntimeWaitError(krwe) => write!(f, "Pipeline Error: Kube Runtime Wait Error: {krwe}"),
             PipelineExecError::SqlError(sqle) => write!(f, "Pipeline Error: SQL Error: {sqle}"),
+            PipelineExecError::InvalidSecretConfiguration => write!(f, "Invalid Secret Configuration: Duplicate secret names were found"),
+            PipelineExecError::ReqwestError(reqe) => write!(f, "Pipeline Error: Reqwest Error: {reqe}"),
+            PipelineExecError::IOError(ioe) => write!(f, "Pipeline Error: I/O Error Error: {ioe}"),
         }
     }
 }
@@ -105,5 +111,17 @@ impl From<kube::runtime::wait::Error> for PipelineExecError {
 impl From<sqlx::Error> for PipelineExecError {
     fn from(value: sqlx::Error) -> Self {
         PipelineExecError::SqlError(value)
+    }
+}
+
+impl From<reqwest::Error> for PipelineExecError {
+    fn from(value: reqwest::Error) -> Self {
+        PipelineExecError::ReqwestError(value)
+    }
+}
+
+impl From<std::io::Error> for PipelineExecError {
+    fn from(value: std::io::Error) -> Self {
+        PipelineExecError::IOError(value)
     }
 }

@@ -39,7 +39,8 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumStat
     let mut pipeline_contents = String::new();
     pipeline_file.read_to_string(&mut pipeline_contents).await?;
 
-    let pipeline: Pipeline = serde_yaml::from_str(&pipeline_contents)?;
+    let mut pipeline: Pipeline = serde_yaml::from_str(&pipeline_contents)?;
+    pipeline.normalize();
     println!("{pipeline:?}");
 
     let pipeline_uuid = Uuid::new_v4();
@@ -61,7 +62,7 @@ async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumState) -> Resu
     // create client job
     let k8s_client = kube::Client::try_default().await?;
     let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
-    let data = crate::kube::build_client_job(pipeline_uuid, pipeline_client_name.clone(), state.container_name.clone())?;
+    let data = crate::kube::build_client_job(pipeline_uuid, pipeline_client_name.clone(), state.container_name.clone(), Some(String::from("constructum-client-validate")))?;
     let _ = jobs.create(&PostParams::default(), &data).await?;
 
     {
@@ -83,7 +84,7 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
     let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
 
     // record results
-    match put_pod_logs_to_s3(pipeline_client_name.clone(), pipeline_client_name.to_string(), state.s3_bucket).await {
+    match put_pod_logs_to_s3(pipeline_client_name.clone(), None, pipeline_client_name.to_string(), state.s3_bucket).await {
         Ok(_) => {},
         Err(e) => {
             println!("{e}");
