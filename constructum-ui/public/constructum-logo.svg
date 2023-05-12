@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="100.43004mm"
+   height="87.215324mm"
+   viewBox="0 0 100.43004 87.215324"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="constructum-logo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="true"
+     inkscape:zoom="1.829812"
+     inkscape:cx="228.71202"
+     inkscape:cy="189.63697"
+     inkscape:window-width="2560"
+     inkscape:window-height="1377"
+     inkscape:window-x="2992"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid9"
+       originx="-98.28463"
+       originy="-61.45819" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <inkscape:path-effect
+       effect="powerstroke"
+       id="path-effect498"
+       is_visible="true"
+       lpeversion="1"
+       offset_points="0.2,0.1322915 | 2,0.1322915 | 3.8,0.1322915"
+       not_jump="false"
+       sort_points="true"
+       interpolator_type="CentripetalCatmullRom"
+       interpolator_beta="0.2"
+       start_linecap_type="butt"
+       linejoin_type="round"
+       miter_limit="4"
+       scale_width="3"
+       end_linecap_type="butt" />
+    <inkscape:path-effect
+       effect="powerstroke"
+       id="path-effect496"
+       is_visible="true"
+       lpeversion="1"
+       offset_points="0.2,0.1322915 | 1,0.1322915 | 1.8,0.1322915"
+       not_jump="false"
+       sort_points="true"
+       interpolator_type="CentripetalCatmullRom"
+       interpolator_beta="0.2"
+       start_linecap_type="butt"
+       linejoin_type="round"
+       miter_limit="4"
+       scale_width="3"
+       end_linecap_type="butt" />
+  </defs>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-98.284627,-61.45819)">
+    <path
+       style="fill:#4fa7ff;fill-rule:nonzero;stroke:none;stroke-width:0.264583"
+       d="m 115.74964,117.73214 c -0.58042,1.01156 -1.74124,3.0347 -3.48248,6.06939 -2.64406,4.60817 -7.96477,13.88133 -13.929897,24.2776 a 0.3968745,0.3968745 14.845809 0 0 0.345305,0.59438 c 16.650982,-0.0449 35.056962,-0.0945 49.818142,-0.13436 14.76118,-0.0396 33.16716,-0.0891 49.81815,-0.13384 a 0.3968745,0.3968745 74.846099 0 0 0.3421,-0.59623 c -5.9862,-10.30439 -11.3257,-19.49559 -13.9791,-24.06303 -1.74738,-3.00788 -2.91231,-5.01313 -3.49477,-6.01576 l -0.68634,0.39872 c 0.58246,1.00263 1.74739,3.00788 3.49477,6.01576 2.60227,4.47943 7.78813,13.40616 13.6338,23.46864 -16.46874,0.0443 -34.5724,0.0929 -49.13075,0.132 -14.55834,0.0393 -32.66199,0.0881 -49.130728,0.1325 5.825898,-10.15361 10.994388,-19.16146 13.587788,-23.68135 1.74124,-3.0347 2.90206,-5.05783 3.48247,-6.0694 z"
+       id="path445"
+       inkscape:path-effect="#path-effect498"
+       inkscape:original-d="m 116.09387,117.92965 -17.412372,30.34699 49.818142,-0.13436 49.81815,-0.13384 -17.47387,-30.07879" />
+    <path
+       style="fill:#4fa7ff;fill-rule:nonzero;stroke:none;stroke-width:0.264583"
+       d="m 166.54199,92.521494 c -0.59771,-1.02886 -1.99236,-3.429535 -3.58624,-6.173163 -3.18777,-5.487255 -9.56331,-16.461766 -14.34497,-24.69265 a 0.39687615,0.39687614 44.845673 0 0 -0.68741,0.0019 c -4.72253,8.230884 -11.01925,19.205395 -14.16761,24.692651 -1.57417,2.743628 -2.95158,5.144302 -3.5419,6.173163 l 0.68848,0.395018 c 0.59031,-1.02886 1.96772,-3.429535 3.5419,-6.173163 3.07292,-5.355783 9.14514,-15.939024 13.82551,-24.096409 4.7391,8.157635 10.88803,18.742073 13.99966,24.09826 1.59388,2.743629 2.98853,5.144303 3.58624,6.173164 z"
+       id="path113"
+       inkscape:path-effect="#path-effect496"
+       inkscape:original-d="M 166.19882,92.720855 148.26761,61.855039 130.5581,92.720855" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:300;font-stretch:normal;font-size:14.1111px;font-family:'Noto Sans';-inkscape-font-specification:'Noto Sans Light';fill:none;fill-opacity:1;stroke:#4fa7ff;stroke-width:0.264583;stroke-opacity:1"
+       x="109.65214"
+       y="109.62138"
+       id="text4639"><tspan
+         sodipodi:role="line"
+         id="tspan4637"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:14.1111px;font-family:Lekton;-inkscape-font-specification:Lekton;fill:#4fa7ff;fill-opacity:1;stroke-width:0.264583"
+         x="109.65214"
+         y="109.62138">CONSTRUCTUM</tspan></text>
+    <rect
+       style="fill:#40a0ff;fill-opacity:1;stroke:#40a0ff;stroke-width:0.264583;stroke-opacity:1"
+       id="rect552"
+       width="3.7594938"
+       height="9.326436"
+       x="187.97469"
+       y="100.33678" />
+    <rect
+       style="fill:#7fbfff;fill-opacity:1;stroke:#7fbfff;stroke-width:0.264583;stroke-opacity:1"
+       id="rect552-5"
+       width="3.7594938"
+       height="9.326436"
+       x="192.69212"
+       y="100.33678" />
+  </g>
+</svg>

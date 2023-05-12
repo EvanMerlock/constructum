@@ -30,7 +30,7 @@ async fn main() -> Result<(), ConstructumConfigError> {
         .route("/v1/job/:job_id/logs", get(constructum::server::api::job::endpoints::get_job_logs))
         .with_state(state.clone());
     
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     tracing::debug!("listening on {}", addr);
 
     sched.add(Job::new_repeated_async(Duration::from_secs(300), move |_uuid, _l| {
