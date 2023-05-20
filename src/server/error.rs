@@ -13,6 +13,11 @@ pub enum ConstructumServerError {
     Git(git::GitError),
     Kubernetes(kube::Error),
     Sql(sqlx::Error),
+    HeaderToStrError(reqwest::header::ToStrError),
+    BadAuthorization,
+    ReqwestError(reqwest::Error),
+    NoRepoFound,
+    RepoAlreadyRegistered,
 }
 
 impl Display for ConstructumServerError {
@@ -24,6 +29,11 @@ impl Display for ConstructumServerError {
             ConstructumServerError::Kubernetes(kube) => write!(f, "Server: Kube Error: {kube}"),
             ConstructumServerError::JSONSerialize(json) => write!(f, "Server: JSON Serialize Error: {json}"),
             ConstructumServerError::Sql(sql) => write!(f, "Server: SQL Error: {sql}"),
+            ConstructumServerError::HeaderToStrError(tostr) => write!(f, "Server: Failed to deserialized header from string: {tostr}"),
+            ConstructumServerError::BadAuthorization => write!(f, "Server: Bad authorization token sent in"),
+            ConstructumServerError::ReqwestError(reqe) => write!(f, "Server: Reqwest error {reqe}"),
+            ConstructumServerError::NoRepoFound => write!(f, "Server: Repo Not Found"),
+            ConstructumServerError::RepoAlreadyRegistered => write!(f, "Server: Repo Already Registered"),
         }
     }
 }
@@ -71,5 +81,17 @@ impl From<serde_json::Error> for ConstructumServerError {
 impl From<sqlx::Error> for ConstructumServerError {
     fn from(value: sqlx::Error) -> Self {
         ConstructumServerError::Sql(value)
+    }
+}
+
+impl From<reqwest::header::ToStrError> for ConstructumServerError {
+    fn from(value: reqwest::header::ToStrError) -> Self {
+        ConstructumServerError::HeaderToStrError(value)
+    }
+}
+
+impl From<reqwest::Error> for ConstructumServerError {
+    fn from(value: reqwest::Error) -> Self {
+        ConstructumServerError::ReqwestError(value)
     }
 }

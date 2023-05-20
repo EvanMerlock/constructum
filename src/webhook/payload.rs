@@ -36,7 +36,7 @@ pub struct CommitUserWebhookPayload {
 
 #[derive(Debug, Deserialize)]
 pub struct RepositoryWebhookPayload {
-    id: u64,
+    pub id: i32,
     owner: UserWebhookPayload,
     pub name: String,
     full_name: String,

@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, JobInfo, completed::StepStatus, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::api::{job::db::{get_job, complete_job}, self}};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::{api::{job::{db::{get_job, complete_job}, JobInfo, StepStatus}, self, repo::RepoInfo}, self}, utils};
 
 mod error;
 
@@ -26,8 +26,9 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
     let (pool, bucket) = config::build_postgres_and_s3(config).await?;
 
     let pipeline_info: JobInfo = get_job(pipeline_uuid, pool.clone()).await?;
+    let repo_info: RepoInfo = server::api::repo::db::get_repo(pipeline_info.repo_id, pool.clone()).await?;
     // begin by initializing the workspace for future jobs
-    let pipeline_file = git::pull_repository(Path::new("/data/"), pipeline_info.repo_url, pipeline_info.repo_name, pipeline_info.commit_id).await?;
+    let pipeline_file = git::pull_repository(Path::new("/data/"), repo_info.repo_url, repo_info.repo_name, pipeline_info.commit_id).await?;
     let pipeline_working_directory = pipeline_file.1;
     let mut pipeline_file = pipeline_file.0;
     let mut pipeline_contents = String::new();
@@ -78,14 +79,15 @@ pub async fn build_pipeline_secrets(pipeline: Pipeline, vault_url: String, token
 
 
                 let resp = {
-                    let mut header_map = reqwest::header::HeaderMap::new();
-                    let mut v_tok = HeaderValue::from_str(&token).expect("failed to set v_tok");
-                    v_tok.set_sensitive(true);
-                    header_map.insert("X-Vault-Token", v_tok);
-                    let req_client = reqwest::ClientBuilder::new().default_headers(header_map);
-                    let req_client = req_client.build()?;
-                    let req = req_client.get(format!("{vault_url}/v1/constructum/subkeys/{}", secret.location)).build()?;
-                    req_client.execute(req).await?
+                    // let mut header_map = reqwest::header::HeaderMap::new();
+                    // let mut v_tok = HeaderValue::from_str(&token).expect("failed to set v_tok");
+                    // v_tok.set_sensitive(true);
+                    // header_map.insert("X-Vault-Token", v_tok);
+                    // let req_client = reqwest::ClientBuilder::new().default_headers(header_map);
+                    // let req_client = req_client.build()?;
+                    // let req = req_client.get(format!("{vault_url}/v1/constructum/subkeys/{}", secret.location)).build()?;
+                    // req_client.execute(req).await?
+                    utils::get_with_auth(format!("{vault_url}/v1/constructum/subkeys/{}", secret.location), "X-Vault-Token", token.clone()).await?
                 };
             
                 let md = resp.json::<VaultSecretResp>().await?;

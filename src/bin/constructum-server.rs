@@ -1,6 +1,6 @@
 
 use axum::{
-    routing::{get, post}, Router,
+    routing::{get, post, delete}, Router,
 };
 use constructum::{config::{Config, ConstructumConfigError}, ConstructumState, server::restart_unfinished_jobs};
 use tokio_cron_scheduler::{JobScheduler, Job};
@@ -17,17 +17,24 @@ async fn main() -> Result<(), ConstructumConfigError> {
         Err(err) => panic!("{err:#?}"),
     };
 
+    let gsu = config.git_server_url.clone().expect("failed to find git server URL");
     let container_name = config.container_name.clone();
     let (pool, bucket) = constructum::config::build_postgres_and_s3(config).await?;
 
-    let state = ConstructumState::new(pool, bucket, container_name);
+    let state = ConstructumState::new(pool, bucket, gsu, container_name);
 
+    // TODO: invert control for endpoints.
     let app = Router::new()
         .route("/health", get(constructum::health))
         .route("/v1/webhook", post(constructum::webhook::webhook))
         .route("/v1/jobs", get(constructum::server::api::job::endpoints::list_jobs))
         .route("/v1/job/:job_id", get(constructum::server::api::job::endpoints::get_job))
         .route("/v1/job/:job_id/logs", get(constructum::server::api::job::endpoints::get_job_logs))
+        .route("/v1/repo/:repo_id", get(constructum::server::api::repo::endpoints::get_repo))
+        .route("/v1/repo/:repo_id", delete(constructum::server::api::repo::endpoints::remove_repository))
+        .route("/v1/repos", get(constructum::server::api::repo::endpoints::list_all_repos))
+        .route("/v1/repos", post(constructum::server::api::repo::endpoints::register_repository))
+        .route("/v1/known_repos", get(constructum::server::api::repo::endpoints::list_known_repos))
         .with_state(state.clone());
     
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));

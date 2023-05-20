@@ -10,14 +10,15 @@ use crate::{ConstructumState, pipeline::{Pipeline}, server::error::ConstructumSe
 use super::api::job::db::list_unfinished_jobs;
 
 pub struct CreateJobPayload {
+    pub repo_id: i32,
     pub html_url: String,
     pub name: String,
     pub commit_hash: String
 }
 
 impl CreateJobPayload {
-    pub fn new(html_url: String, name: String, commit_hash: String) -> CreateJobPayload {
-        CreateJobPayload { html_url, name, commit_hash }
+    pub fn new(repo_id: i32, html_url: String, name: String, commit_hash: String) -> CreateJobPayload {
+        CreateJobPayload { repo_id, html_url, name, commit_hash }
     }
 }
 
@@ -29,6 +30,12 @@ pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> R
 }
 
 async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumState) -> Result<Uuid, ConstructumServerError> {
+    // checking for existence
+    let repo_ref = 
+        super::api::repo::db::get_repo_by_git_id(payload.repo_id, state.postgres.clone())
+            .await?
+            .ok_or(ConstructumServerError::NoRepoFound)?;
+
     let mut pipeline_file = git::get_pipeline_file(
         Path::new("E:\\Code\\.constructum\\build_cache"),
         payload.html_url.clone(),
@@ -45,7 +52,7 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumStat
 
     let pipeline_uuid = Uuid::new_v4();
     
-    super::api::job::db::create_job(state.postgres, pipeline_uuid, payload).await?;
+    super::api::job::db::create_job(state.postgres, pipeline_uuid, repo_ref.repo_uuid, payload).await?;
 
     Ok(pipeline_uuid)
 }

@@ -218,6 +218,8 @@ pub async fn read_kubernetes_token(vault_url: String, location: PathBuf) -> Resu
 
     fs.read_to_string(&mut var).await?;
 
+
+    // TODO: Replace with post util
     let http_client = reqwest::ClientBuilder::new();
 
     #[derive(Debug, Serialize, Deserialize)]

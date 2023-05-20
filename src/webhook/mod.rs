@@ -15,7 +15,7 @@ pub async fn webhook(
     State(state): State<ConstructumState>,
     Json(payload): Json<GitWebhookPayload>,
 ) -> axum::response::Result<Json<WebhookResult>, ConstructumWebhookError> {
-    let create_job_payload = CreateJobPayload::new(payload.repository.html_url, payload.repository.name, payload.after);
+    let create_job_payload = CreateJobPayload::new(payload.repository.id, payload.repository.html_url, payload.repository.name, payload.after);
     let pipeline_uuid = server::create_job(create_job_payload, state).await?;
 
     Ok(Json(WebhookResult {
