@@ -12,6 +12,7 @@ export const authOptions: NextAuthOptions = {
     clientId: process.env.OAUTH_APP_ID,
     clientSecret: process.env.OAUTH_CLIENT_SECRET,
     profile(profile) {
+      console.log(profile)
       return {
         id: profile.sub,
         name: profile.name || profile.preferred_username,

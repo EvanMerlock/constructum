@@ -1,4 +1,3 @@
-import { UUID } from "crypto";
 import Job from "../job";
 
 async function getJob(jobId: string) {

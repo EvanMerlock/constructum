@@ -37,7 +37,6 @@ pub struct GiteaRepository {
     pub html_url: String,
     pub ssh_url: String,
     pub owner: GiteaUser,
-    pub is_registed: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -50,4 +49,15 @@ pub struct GiteaUser {
 pub struct RegisterRepositoryPayload {
     pub owner: String,
     pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GitRepoResponse {
+    pub id: Option<Uuid>,
+    pub name: String,
+    pub description: String,
+    pub html_url: String,
+    pub ssh_url: String,
+    pub owner: GiteaUser,
+    pub is_registed: bool,
 }

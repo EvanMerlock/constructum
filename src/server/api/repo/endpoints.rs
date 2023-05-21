@@ -1,9 +1,8 @@
-use axum::{Json, extract::{State, Query, Path}, http::{HeaderMap, StatusCode}, response::IntoResponse};
+use axum::{Json, extract::{State, Path}, http::{HeaderMap, StatusCode}, response::IntoResponse};
 use serde::Deserialize;
-use serde_json::json;
 use uuid::Uuid;
 
-use crate::{ConstructumState, server::{error::ConstructumServerError, api::repo::db::list_repos}, utils};
+use crate::{ConstructumState, server::{error::ConstructumServerError, api::repo::{db::list_repos, GitRepoResponse}}, utils};
 
 use super::{RepoInfo, GiteaRepository, RegisterRepositoryPayload};
 
@@ -20,7 +19,7 @@ pub async fn list_known_repos(
 pub async fn list_all_repos(
     headers: HeaderMap,
     State(state): State<ConstructumState>
-) -> Result<Json<Vec<GiteaRepository>>, ConstructumServerError> {
+) -> Result<Json<Vec<GitRepoResponse>>, ConstructumServerError> {
     let auth_tok = headers.get("Authorization").ok_or(ConstructumServerError::BadAuthorization)?;
     let resp = utils::get_with_auth(format!("{}/api/v1/repos/search", state.git_server_url), "Authorization", auth_tok.to_str()?.to_owned()).await?;
 
@@ -40,9 +39,17 @@ pub async fn list_all_repos(
     let known_repos = list_repos(state.postgres).await?;
 
     // TODO: this is O(n^2)
-    let git_repos = git_repos.into_iter().map(|mut x| {
-        x.is_registed = Some(known_repos.iter().filter(|y| y.git_id == x.id).count() > 0);
-        x
+    let git_repos = git_repos.into_iter().map(|x| {
+        let known_repo = known_repos.iter().find(|y| y.git_id == x.id);
+        GitRepoResponse {
+            id: known_repo.map(|x| x.repo_uuid),
+            name: x.name,
+            description: x.description,
+            html_url: x.html_url,
+            ssh_url: x.ssh_url,
+            owner: x.owner,
+            is_registed: known_repo.is_some(),
+        }
     }).collect();
 
     Ok(Json(git_repos))
