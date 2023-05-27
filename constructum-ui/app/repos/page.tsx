@@ -1,30 +1,43 @@
-import { getServerSession } from "next-auth";
+"use client";
+
+import useSWR from "swr";
 import Repo from "./repo";
 import RepoRow from "./repo_row";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+
+const fetcher = (args: string) => fetch(args).then((res) => res.json());
 
 async function getRepos() {
-  const session = await getServerSession(authOptions);
-    const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/v1/repos`, {
-      headers: {
-        "Authorization": "token BLAH"
-      }
-    });
-    const text = await res.text()
-    console.log(text)
-    return res.json();
+  const res = await fetch(`/v1/api/repos`);
+  return res.json();
 }
 
-export default async function RepoPage() {
-    const repoData: Array<Repo> = await getRepos();
+export default function RepoPage() {
+  const { data, error, isLoading } = useSWR("/v1/api/repos", fetcher);
 
-    return (
-        <>
-          <div className="space-y-4">
-            {repoData.map(function (repo, i) {
-              return <RepoRow repo={repo} />;
-            })}
-          </div>
-        </>
-      );
+  if (error) {
+    return (<>
+      <div className="space-y-4">
+        <h1>Error Occurred While Loading</h1>
+      </div>
+    </>);
+  }
+
+  if (isLoading) {
+    return (<>
+      <div className="space-y-4">
+        <h1>Loading</h1>
+      </div>
+    </>);
+  }
+
+  // TODO: Add pagination
+  return (
+    <>
+      <div className="space-y-4">
+        {data.map(function (repo: Repo, _i: any) {
+          return <RepoRow repo={repo} />;
+        })}
+      </div>
+    </>
+  );
 }

@@ -6,6 +6,11 @@ export default interface Repo {
     description: string,
     html_url: string,
     ssh_url: string,
-    owner: string,
+    owner: GiteaUser,
     is_registered: boolean
+}
+
+export interface GiteaUser {
+    id: number,
+    login: string,
 }

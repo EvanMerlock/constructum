@@ -10,6 +10,7 @@ pub async fn list_repos(
     sqlx::query_as("SELECT * FROM constructum.repositories").fetch_all(&mut sql_connection).await
 }
 
+#[tracing::instrument]
 pub async fn get_repo(
     repo_id: Uuid,
     pool: PgPool
@@ -21,6 +22,7 @@ pub async fn get_repo(
         .await
 }
 
+#[tracing::instrument]
 pub async fn get_repo_optional(
     repo_id: Uuid,
     pool: PgPool
@@ -44,29 +46,49 @@ pub async fn get_repo_by_git_id(
         .await
 }
 
+#[tracing::instrument]
 pub async fn register_repo(
     pool: PgPool,
     payload: RepoInfo
 ) -> Result<(), sqlx::Error> {
     let mut sql_connection = pool.acquire().await?;
-    sqlx::query("INSERT INTO constructum.repositories (id, git_id, repo_url, repo_owner, repo_name, webhook_id) VALUES ($1, $2, $3, $4, $5, $6)")
+    sqlx::query("INSERT INTO constructum.repositories (id, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(payload.repo_uuid)
         .bind(payload.git_id)
         .bind(payload.repo_url)
         .bind(payload.repo_owner)
         .bind(payload.repo_name)
         .bind(payload.webhook_id)
+        .bind(payload.enabled)
         .execute(&mut sql_connection).await?;
     Ok(())
 }
 
+#[tracing::instrument]
 pub async fn delete_repo(
     repo_id: Uuid,
     pool: PgPool
 ) -> Result<(), sqlx::Error> {
     let mut sql_connection = pool.acquire().await?;
-    sqlx::query("DELETE FROM constructum.repositories WHERE id = $1")
+    // TODO: soft delete instead of hard delete. will need to check for that on re-enable.
+    sqlx::query("UPDATE constructum.repositories SET enabled = false, webhook_id = NULL WHERE id = $1")
         .bind(repo_id)
+        .execute(&mut sql_connection)
+        .await?;
+    Ok(())
+}
+
+#[tracing::instrument]
+pub async fn enable_repo(
+    repo_id: Uuid,
+    webhook_id: i32,
+    pool: PgPool
+) -> Result<(), sqlx::Error> {
+    let mut sql_connection = pool.acquire().await?;
+    // TODO: soft delete instead of hard delete. will need to check for that on re-enable.
+    sqlx::query("UPDATE constructum.repositories SET enabled = true, webhook_id = $2 WHERE id = $1")
+        .bind(repo_id)
+        .bind(webhook_id)
         .execute(&mut sql_connection)
         .await?;
     Ok(())

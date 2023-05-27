@@ -24,6 +24,7 @@ tokio-cron-scheduler = "0.9.4"
 futures = "0.3"
 reqwest = "0.11.16"
 schemars = "0.8.12"
+tower-http = { version = "0.1", features = ["trace"] }
 
 [dependencies.uuid]
 version = "1.3.0"

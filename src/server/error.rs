@@ -1,9 +1,12 @@
-use std::{fmt::Display, error::Error};
+use std::{error::Error, fmt::Display};
 
-use axum::{response::{IntoResponse, Response}, http::StatusCode};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use serde::Serialize;
 
 use crate::git;
-
 
 #[derive(Debug)]
 pub enum ConstructumServerError {
@@ -24,16 +27,27 @@ impl Display for ConstructumServerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConstructumServerError::IO(io) => write!(f, "Server: IO Error: {io}"),
-            ConstructumServerError::YAMLDeserialize(yaml) => write!(f, "Server: YAML Deserialize Error: {yaml}"),
+            ConstructumServerError::YAMLDeserialize(yaml) => {
+                write!(f, "Server: YAML Deserialize Error: {yaml}")
+            }
             ConstructumServerError::Git(git) => write!(f, "Server: Git Error: {git}"),
             ConstructumServerError::Kubernetes(kube) => write!(f, "Server: Kube Error: {kube}"),
-            ConstructumServerError::JSONSerialize(json) => write!(f, "Server: JSON Serialize Error: {json}"),
+            ConstructumServerError::JSONSerialize(json) => {
+                write!(f, "Server: JSON Serialize Error: {json}")
+            }
             ConstructumServerError::Sql(sql) => write!(f, "Server: SQL Error: {sql}"),
-            ConstructumServerError::HeaderToStrError(tostr) => write!(f, "Server: Failed to deserialized header from string: {tostr}"),
-            ConstructumServerError::BadAuthorization => write!(f, "Server: Bad authorization token sent in"),
+            ConstructumServerError::HeaderToStrError(tostr) => write!(
+                f,
+                "Server: Failed to deserialized header from string: {tostr}"
+            ),
+            ConstructumServerError::BadAuthorization => {
+                write!(f, "Server: Bad authorization token sent in")
+            }
             ConstructumServerError::ReqwestError(reqe) => write!(f, "Server: Reqwest error {reqe}"),
             ConstructumServerError::NoRepoFound => write!(f, "Server: Repo Not Found"),
-            ConstructumServerError::RepoAlreadyRegistered => write!(f, "Server: Repo Already Registered"),
+            ConstructumServerError::RepoAlreadyRegistered => {
+                write!(f, "Server: Repo Already Registered")
+            }
         }
     }
 }
@@ -42,9 +56,19 @@ impl Error for ConstructumServerError {}
 
 impl IntoResponse for ConstructumServerError {
     fn into_response(self) -> Response {
+        #[derive(Serialize)]
+        struct Error {
+            error: String,
+        }
+
         let resp_body = format!("{self}");
 
-        (StatusCode::INTERNAL_SERVER_ERROR, resp_body).into_response()
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            serde_json::to_string(&Error { error: resp_body })
+                .expect("failed to construct serde response"),
+        )
+            .into_response()
     }
 }
 

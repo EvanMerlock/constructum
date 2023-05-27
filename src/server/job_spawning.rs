@@ -90,6 +90,8 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
     let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
     let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
 
+    // TODO: check for job cancellation and set job status correctly
+
     // record results
     match put_pod_logs_to_s3(pipeline_client_name.clone(), None, pipeline_client_name.to_string(), state.s3_bucket).await {
         Ok(_) => {},
@@ -110,7 +112,7 @@ pub async fn restart_unfinished_jobs(state: ConstructumState) -> Result<(), Cons
 
     // restart first N jobs, where N is defined by TODO: config
     for unfinished in unfinished_jobs {
-        if state.current_jobs.read().expect("lock poisoned").contains(&unfinished.job_uuid) {
+        if !state.current_jobs.read().expect("lock poisoned").contains(&unfinished.job_uuid) {
             assign_job_to_k8s(unfinished.job_uuid, state.clone()).await?;
             break;
         }

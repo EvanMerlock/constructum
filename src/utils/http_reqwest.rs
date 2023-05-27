@@ -1,6 +1,7 @@
 use axum::http::HeaderValue;
 use reqwest::{Response, Body};
 
+#[tracing::instrument(skip(token))]
 pub async fn get_with_auth(url: String, header_name: &'static str, token: String) -> Result<Response, reqwest::Error> {
     let mut header_map = reqwest::header::HeaderMap::new();
     let mut a_tok = HeaderValue::from_str(&token).expect("failed to set authorization token");
@@ -12,6 +13,7 @@ pub async fn get_with_auth(url: String, header_name: &'static str, token: String
     req_client.execute(req).await
 }
 
+#[tracing::instrument(skip(token, body))]
 pub async fn post_with_auth<T>(url: String, header_name: &'static str, token: String, body: T, content_type: &'static str) -> Result<Response, reqwest::Error> where T: Into<Body> {
     let mut header_map = reqwest::header::HeaderMap::new();
     let mut a_tok = HeaderValue::from_str(&token).expect("failed to set authorization token");
@@ -25,6 +27,7 @@ pub async fn post_with_auth<T>(url: String, header_name: &'static str, token: St
     req_client.execute(req).await
 }
 
+#[tracing::instrument(skip(token))]
 pub async fn delete_with_auth(url: String, header_name: &'static str, token: String) -> Result<Response, reqwest::Error> {
     let mut header_map = reqwest::header::HeaderMap::new();
     let mut a_tok = HeaderValue::from_str(&token).expect("failed to set authorization token");

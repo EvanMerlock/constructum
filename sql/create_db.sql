@@ -6,7 +6,8 @@ CREATE TABLE constructum.repositories (
     repo_url TEXT NOT NULL,
     repo_owner TEXT NOT NULL,
     repo_name TEXT NOT NULL,
-    webhook_id INTEGER NOT NULL
+    webhook_id INTEGER,
+    enabled BOOLEAN NOT NULL
 );
 
 CREATE TABLE constructum.jobs (

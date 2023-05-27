@@ -1,19 +1,6 @@
-const loginUrl = `${process.env.OAUTH_GITEA_URL}/login/oauth/authorize?client_id=${
-    process.env.OAUTH_APP_ID
-  }&redirect_uri=${encodeURI(
-    `https://localhost:3001/api/auth/callback/gitea`
-  )}&response_type=code`;
-  
+"use client"
 
-// export default function SignIn() {
-//     return (<div>
-//     <a href={loginUrl}>
-//       <span className="block w-max text-sm font-semibold tracking-wide text-gray-700 transition duration-300 group-hover:text-blue-600 sm:text-base">
-//         Continue with Gitea
-//       </span>
-//     </a>
-//   </div>)
-// }
+import { signIn } from "next-auth/react";
 
 export default function SignIn() {
   return (
@@ -32,13 +19,12 @@ export default function SignIn() {
 
         <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
             <div className="space-y-6">
-              <a
-                type="submit"
+              <button
+                onClick={() => signIn("gitea")}
                 className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                href={loginUrl}
               >
                 Sign in with Gitea
-              </a>
+              </button>
             </div>
         </div>
       </div>

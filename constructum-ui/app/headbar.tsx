@@ -35,7 +35,7 @@ export default function HeadbarComponent() {
                   <div className="flex-shrink-0">
                     <img
                       className="h-12 w-36"
-                      src="./constructum-name-logo.svg"
+                      src="/constructum-name-logo.svg"
                       alt="Constructum"
                     />
                   </div>
@@ -76,7 +76,7 @@ export default function HeadbarComponent() {
                           <span className="sr-only">Open user menu</span>
                           <img
                             className="h-8 w-8 rounded-full"
-                            src={session?.user?.image || "./windows_pfp.svg"}
+                            src={session?.user?.image || "/windows_pfp.svg"}
                             alt="User profile image"
                           />
                         </Menu.Button>
@@ -150,7 +150,7 @@ export default function HeadbarComponent() {
                   <div className="flex-shrink-0">
                     <img
                       className="h-10 w-10 rounded-full"
-                      src={session?.user?.image || "./windows_pfp.svg"}
+                      src={session?.user?.image || "/windows_pfp.svg"}
                       alt="User profile image"
                     />
                   </div>

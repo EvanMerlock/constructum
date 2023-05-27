@@ -1,10 +1,12 @@
 use reqwest::StatusCode;
 use serde::{Serialize, Deserialize};
+use tracing::info;
 
 use crate::{server::{error::ConstructumServerError}, utils::{post_with_auth, delete_with_auth}};
 
 use super::{GiteaRepository, RepoInfo};
 
+#[tracing::instrument(skip(token))]
 pub async fn add_constructum_webhook(url: String, repo: GiteaRepository, token: String) -> Result<i32, ConstructumServerError> {
 
     #[derive(Debug, Serialize)]
@@ -37,8 +39,8 @@ pub async fn add_constructum_webhook(url: String, repo: GiteaRepository, token: 
 
     let body = serde_json::to_string(&cwp)?;
     let req_url = format!("{url}/api/v1/repos/{}/{}/hooks", repo.owner.login, repo.name);
-    println!("req url: {req_url}");
     let resp = post_with_auth(req_url, "Authorization", token, body, "application/json").await?;
+    info!("resp {:?}", resp);
 
     #[derive(Debug, Deserialize)]
     struct CreateWebhookResponse {
@@ -50,12 +52,21 @@ pub async fn add_constructum_webhook(url: String, repo: GiteaRepository, token: 
     Ok(resp_id.id)
 }
 
+#[tracing::instrument]
 pub async fn remove_constructum_webhook(url: String, db_repo: RepoInfo, token: String) -> Result<(), ConstructumServerError> {
-    let resp = delete_with_auth(format!("{url}/api/v1/repos/{}/{}/hooks/{}", db_repo.repo_owner, db_repo.repo_name, db_repo.webhook_id), "Authorization", token).await?;
+    match db_repo.webhook_id {
+        Some(wh_id) => {
+            let resp = delete_with_auth(format!("{url}/api/v1/repos/{}/{}/hooks/{}", db_repo.repo_owner, db_repo.repo_name, wh_id), "Authorization", token).await?;
 
-    if resp.status() != StatusCode::OK {
-        // TODO: return error
+            if resp.status() != StatusCode::OK {
+                // TODO: return error
+            }
+        
+            Ok(())
+        },
+        None => {
+            Ok(())
+        }
     }
 
-    Ok(())
 }

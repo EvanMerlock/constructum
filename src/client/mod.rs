@@ -79,14 +79,6 @@ pub async fn build_pipeline_secrets(pipeline: Pipeline, vault_url: String, token
 
 
                 let resp = {
-                    // let mut header_map = reqwest::header::HeaderMap::new();
-                    // let mut v_tok = HeaderValue::from_str(&token).expect("failed to set v_tok");
-                    // v_tok.set_sensitive(true);
-                    // header_map.insert("X-Vault-Token", v_tok);
-                    // let req_client = reqwest::ClientBuilder::new().default_headers(header_map);
-                    // let req_client = req_client.build()?;
-                    // let req = req_client.get(format!("{vault_url}/v1/constructum/subkeys/{}", secret.location)).build()?;
-                    // req_client.execute(req).await?
                     utils::get_with_auth(format!("{vault_url}/v1/constructum/subkeys/{}", secret.location), "X-Vault-Token", token.clone()).await?
                 };
             
@@ -172,9 +164,7 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
             args_to_correct.append(&mut step.commands.clone());
             let fixed_arg = correct_args(args_to_correct);
             corrected_args.push(fixed_arg.expect("failed to build corrected args"));
-
-            println!("cmds: {corrected_args:?}");
-
+            
             // create step cfg
 
             let pipeline_step_config = PipelineJobConfig {

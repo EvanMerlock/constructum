@@ -11,7 +11,8 @@ pub struct RepoInfo {
     pub repo_url: String,
     pub repo_owner: String,
     pub repo_name: String,
-    pub webhook_id: i32,
+    pub webhook_id: Option<i32>,
+    pub enabled: bool,
 }
 
 impl<'r> sqlx::FromRow<'r, PgRow> for RepoInfo {
@@ -21,10 +22,11 @@ impl<'r> sqlx::FromRow<'r, PgRow> for RepoInfo {
         let repo_url: String = row.try_get("repo_url")?;
         let repo_owner: String = row.try_get("repo_owner")?;
         let repo_name: String = row.try_get("repo_name")?;
-        let webhook_id: i32 = row.try_get("webhook_id")?;
+        let webhook_id: Option<i32> = row.try_get("webhook_id")?;
+        let enabled: bool = row.try_get("enabled")?;
 
         Ok(
-            RepoInfo { repo_uuid: uuid, git_id, repo_url, repo_owner, repo_name, webhook_id }
+            RepoInfo { repo_uuid: uuid, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled }
         )
     }
 }
@@ -59,5 +61,5 @@ pub struct GitRepoResponse {
     pub html_url: String,
     pub ssh_url: String,
     pub owner: GiteaUser,
-    pub is_registed: bool,
+    pub is_registered: bool,
 }
