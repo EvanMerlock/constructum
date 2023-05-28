@@ -31,7 +31,7 @@ pub async fn add_constructum_webhook(url: String, repo: GiteaRepository, token: 
         active: true,
         // TODO: configurable
         branch_filter: None,
-        config: CreateWebhookConfig { content_type: "json".to_owned(), url: "http://10.16.24.2:3001/v1/webhook".to_owned() },
+        config: CreateWebhookConfig { content_type: "json".to_owned(), url: "http://10.16.24.2:3001/api/v1/webhook".to_owned() },
         // TODO: configurable
         events: vec!["push".to_owned()],
         wh_type: "gitea".to_owned(),

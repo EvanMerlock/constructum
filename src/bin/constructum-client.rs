@@ -16,7 +16,7 @@ async fn main() -> Result<(), ConstructumClientError> {
     };
 
     let app = Router::new()
-        .route("/health", get(constructum::health));
+        .route("/health", get(constructum::health::health));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::debug!("listening on {}", addr);

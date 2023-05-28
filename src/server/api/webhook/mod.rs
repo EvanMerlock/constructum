@@ -1,4 +1,4 @@
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, routing::post};
 use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
@@ -26,4 +26,9 @@ pub async fn webhook(
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WebhookResult {
     job_uuid: Uuid,
+}
+
+pub fn register_module(router: axum::Router<ConstructumState, axum::body::Body>) -> axum::Router<ConstructumState, axum::body::Body> {
+    router
+        .route("/webhook", post(webhook))
 }

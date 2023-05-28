@@ -4,11 +4,11 @@ use s3::Bucket;
 use sqlx::{Pool, Postgres};
 use uuid::Uuid;
 
-pub mod webhook;
 pub mod pipeline;
 pub mod config;
 pub mod client;
 pub mod server;
+pub mod health;
 mod git;
 mod kube;
 mod s3buckets;
@@ -27,8 +27,4 @@ impl ConstructumState {
     pub fn new(pool: Pool<Postgres>, s3_bucket: Bucket, git_url: String, container_name: String) -> ConstructumState {
         ConstructumState { postgres: pool, s3_bucket, git_server_url: git_url, current_jobs: Arc::new(RwLock::new(HashSet::new())), container_name: container_name }
     }
-}
-
-pub async fn health() -> &'static str {
-    "Ok"
 }

@@ -1,10 +1,17 @@
-
 use axum::{
-    routing::{get, post, delete}, Router,
+    routing::{delete, get, post},
+    Router, ServiceExt,
 };
-use constructum::{config::{Config, ConstructumConfigError}, ConstructumState, server::restart_unfinished_jobs};
-use tokio_cron_scheduler::{JobScheduler, Job};
-use tower_http::{trace::TraceLayer, classify::StatusInRangeAsFailures};
+use constructum::{
+    config::{Config, ConstructumConfigError},
+    server::restart_unfinished_jobs,
+    ConstructumState,
+};
+use tokio_cron_scheduler::{Job, JobScheduler};
+use tower_http::{
+    classify::StatusInRangeAsFailures, normalize_path::NormalizePathLayer, trace::TraceLayer,
+};
+use tower_layer::Layer;
 
 use std::{net::SocketAddr, time::Duration};
 
@@ -18,29 +25,31 @@ async fn main() -> Result<(), ConstructumConfigError> {
         Err(err) => panic!("{err:#?}"),
     };
 
-    let gsu = config.git_server_url.clone().expect("failed to find git server URL");
+    let gsu = config
+        .git_server_url
+        .clone()
+        .expect("failed to find git server URL");
     let container_name = config.container_name.clone();
     let (pool, bucket) = constructum::config::build_postgres_and_s3(config).await?;
 
     let state = ConstructumState::new(pool, bucket, gsu, container_name);
 
     // TODO: invert control for endpoints.
-    let app = Router::new()
-        .route("/health", get(constructum::health))
-        .route("/v1/webhook", post(constructum::webhook::webhook))
-        .route("/v1/jobs", get(constructum::server::api::job::endpoints::list_jobs))
-        .route("/v1/job/:job_id", get(constructum::server::api::job::endpoints::get_job))
-        .route("/v1/job/:job_id/logs", get(constructum::server::api::job::endpoints::get_job_logs))
-        .route("/v1/repos/:repo_id", get(constructum::server::api::repo::endpoints::get_repo))
-        .route("/v1/repos/:repo_id", delete(constructum::server::api::repo::endpoints::remove_repository))
-        .route("/v1/repos", get(constructum::server::api::repo::endpoints::list_all_repos))
-        .route("/v1/repos", post(constructum::server::api::repo::endpoints::register_repository))
-        .route("/v1/known_repos", get(constructum::server::api::repo::endpoints::list_known_repos))
-        .layer(TraceLayer::new(
-            StatusInRangeAsFailures::new(400..=599).into_make_classifier()
-        ))
-        .with_state(state.clone());
-    
+    let subrouter = Router::new();
+    let subrouter = constructum::server::api::webhook::register_module(subrouter);
+    let subrouter = constructum::server::api::job::register_module(subrouter);
+    let subrouter = constructum::server::api::repo::register_module(subrouter);
+
+    let app = NormalizePathLayer::trim_trailing_slash().layer(
+        Router::new()
+            .route("/health", get(constructum::health::health))
+            .nest("/api/v1/", subrouter)
+            .layer(TraceLayer::new(
+                StatusInRangeAsFailures::new(400..=599).into_make_classifier(),
+            ))
+            .with_state(state.clone()),
+    );
+
     let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     tracing::debug!("listening on {}", addr);
 
@@ -49,7 +58,7 @@ async fn main() -> Result<(), ConstructumConfigError> {
     //     Box::pin(async move {
     //         println!("restarting an unfinished job");
     //         restart_unfinished_jobs(cloned_state).await.expect("Failed to restart unfinished jobs");
-    //     }) 
+    //     })
     // }).expect("failed to build job")).await.expect("failed to schedule job");
 
     // sched.start().await.expect("failed to start scheduler");
