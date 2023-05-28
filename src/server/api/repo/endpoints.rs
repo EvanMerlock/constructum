@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     server::{
-        api::repo::{db::list_repos, GitRepoResponse},
+        api::{repo::{db::list_repos, GitRepoResponse}, job::JobInfo},
         error::ConstructumServerError,
     },
     utils, ConstructumState,
@@ -221,4 +221,16 @@ pub async fn remove_repository(
     };
 
     Ok((StatusCode::NO_CONTENT, ""))
+}
+
+pub async fn jobs_for_repository(
+    Path(repo_id): Path<Uuid>,
+    State(state): State<ConstructumState>,
+) -> Result<Json<Vec<JobInfo>>, ConstructumServerError> {
+        // checking for existence
+        let _repo_ref = super::db::get_repo_optional(repo_id, state.postgres.clone())
+        .await?
+        .ok_or(ConstructumServerError::NoRepoFound)?;
+
+    Ok(Json(crate::server::api::job::db::list_jobs_for_repo(repo_id, state.postgres).await?))
 }

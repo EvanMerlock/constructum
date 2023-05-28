@@ -7,9 +7,6 @@ export const authOptions: NextAuthOptions = {
       name: "Gitea",
       type: "oauth",
       wellKnown: `${process.env.OAUTH_GITEA_URL}/.well-known/openid-configuration`,
-      // authorization: {
-      //   params: { scope: "openid profile email read:user repo:status offline_access" },
-      // },
       idToken: false,
       checks: [],
       clientId: process.env.OAUTH_APP_ID,
@@ -34,6 +31,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      // TODO: token refresh
       if (session) {
         session = Object.assign({}, session, {
           access_token: token.access_token,

@@ -1,5 +1,4 @@
 import { UUID } from "crypto";
-import Repo from "../repo";
 
 async function getRepo(repoId: string) {
     const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/v1/repos/${repoId}`)
@@ -28,6 +27,8 @@ export default async function Page({
             <h1>{repoData.repo_owner}/{repoData.repo_name}</h1>
             <h2>ID: {repoData.repo_uuid}</h2>
             <h2>URL: {repoData.repo_url}</h2>
+            <h1>Jobs run on this repository:</h1>
+            
         </>
     )
 }
