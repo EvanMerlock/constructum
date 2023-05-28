@@ -128,6 +128,7 @@ pub async fn register_repository(
             repo_name: _,
             webhook_id: _,
             enabled,
+            builds_executed: _,
         }) if enabled => Err(ConstructumServerError::RepoAlreadyRegistered),
         Some(RepoInfo {
             repo_uuid,
@@ -137,6 +138,7 @@ pub async fn register_repository(
             repo_name: _,
             webhook_id: _,
             enabled,
+            builds_executed: _,
         }) if !enabled => {
             // just disabled
             // create wh and input
@@ -178,6 +180,7 @@ pub async fn register_repository(
                 repo_name: git_repo.name.clone(),
                 webhook_id: Some(wh_id),
                 enabled: true,
+                builds_executed: 0,
             };
 
             super::db::register_repo(state.postgres, payload).await?;
@@ -223,6 +226,7 @@ pub async fn remove_repository(
     Ok((StatusCode::NO_CONTENT, ""))
 }
 
+#[tracing::instrument(skip(state))]
 pub async fn jobs_for_repository(
     Path(repo_id): Path<Uuid>,
     State(state): State<ConstructumState>,
@@ -232,5 +236,6 @@ pub async fn jobs_for_repository(
         .await?
         .ok_or(ConstructumServerError::NoRepoFound)?;
 
-    Ok(Json(crate::server::api::job::db::list_jobs_for_repo(repo_id, state.postgres).await?))
+    let results = crate::server::api::job::db::list_jobs_for_repo(repo_id, state.postgres).await?;
+    Ok(Json(results))
 }

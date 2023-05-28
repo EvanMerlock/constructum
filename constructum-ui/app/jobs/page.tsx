@@ -2,7 +2,7 @@ import Job from "./job";
 import JobRow from "./job_row";
 
 async function getJobs() {
-  const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/v1/jobs`);
+  const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/api/v1/jobs`);
   return res.json();
 }
 

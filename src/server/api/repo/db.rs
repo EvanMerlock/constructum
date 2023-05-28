@@ -52,7 +52,7 @@ pub async fn register_repo(
     payload: RepoInfo
 ) -> Result<(), sqlx::Error> {
     let mut sql_connection = pool.acquire().await?;
-    sqlx::query("INSERT INTO constructum.repositories (id, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled) VALUES ($1, $2, $3, $4, $5, $6, $7)")
+    sqlx::query("INSERT INTO constructum.repositories (id, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled, builds_executed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)")
         .bind(payload.repo_uuid)
         .bind(payload.git_id)
         .bind(payload.repo_url)
@@ -60,6 +60,7 @@ pub async fn register_repo(
         .bind(payload.repo_name)
         .bind(payload.webhook_id)
         .bind(payload.enabled)
+        .bind(payload.builds_executed)
         .execute(&mut sql_connection).await?;
     Ok(())
 }
@@ -89,6 +90,22 @@ pub async fn enable_repo(
     sqlx::query("UPDATE constructum.repositories SET enabled = true, webhook_id = $2 WHERE id = $1")
         .bind(repo_id)
         .bind(webhook_id)
+        .execute(&mut sql_connection)
+        .await?;
+    Ok(())
+}
+
+#[tracing::instrument]
+pub async fn update_repo_seq(
+    pool: PgPool,
+    repo_id: Uuid,
+    last_seq: i32,
+) -> Result<(), sqlx::Error> {
+    let mut sql_connection = pool.acquire().await?;
+    // TODO: soft delete instead of hard delete. will need to check for that on re-enable.
+    sqlx::query("UPDATE constructum.repositories SET builds_executed = $2 WHERE id = $1")
+        .bind(repo_id)
+        .bind(last_seq)
         .execute(&mut sql_connection)
         .await?;
     Ok(())

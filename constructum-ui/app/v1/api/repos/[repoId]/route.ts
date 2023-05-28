@@ -14,7 +14,7 @@ export async function DELETE(request: Request, {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });    
     }
   
-    const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/v1/repos/${params.repoId}`, {
+    const res = await fetch(`${process.env.CONSTRUCTUM_API_URL}/api/v1/repos/${params.repoId}`, {
       headers: {
         // @ts-ignore
         Authorization: "token " + session.access_token,

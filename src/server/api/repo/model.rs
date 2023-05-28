@@ -13,6 +13,7 @@ pub struct RepoInfo {
     pub repo_name: String,
     pub webhook_id: Option<i32>,
     pub enabled: bool,
+    pub builds_executed: i32,
 }
 
 impl<'r> sqlx::FromRow<'r, PgRow> for RepoInfo {
@@ -24,9 +25,10 @@ impl<'r> sqlx::FromRow<'r, PgRow> for RepoInfo {
         let repo_name: String = row.try_get("repo_name")?;
         let webhook_id: Option<i32> = row.try_get("webhook_id")?;
         let enabled: bool = row.try_get("enabled")?;
+        let builds_executed: i32 = row.try_get("builds_executed")?;
 
         Ok(
-            RepoInfo { repo_uuid: uuid, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled }
+            RepoInfo { repo_uuid: uuid, git_id, repo_url, repo_owner, repo_name, webhook_id, enabled, builds_executed }
         )
     }
 }

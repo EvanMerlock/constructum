@@ -52,7 +52,8 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumStat
 
     let pipeline_uuid = Uuid::new_v4();
     
-    super::api::job::db::create_job(state.postgres, pipeline_uuid, repo_ref.repo_uuid, payload).await?;
+    super::api::job::db::create_job(state.postgres.clone(), pipeline_uuid, repo_ref.builds_executed+1, repo_ref.repo_uuid, payload).await?;
+    super::api::repo::db::update_repo_seq(state.postgres, repo_ref.repo_uuid, repo_ref.builds_executed+1).await?;
 
     Ok(pipeline_uuid)
 }

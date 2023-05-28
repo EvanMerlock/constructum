@@ -26,12 +26,13 @@ pub async fn list_jobs(pool: PgPool) -> Result<Vec<JobInfo>, sqlx::Error> {
     Ok(pipeline_info)
 }
 
+#[tracing::instrument(skip(pool))]
 pub async fn list_jobs_for_repo(repo_id: Uuid, pool: PgPool) -> Result<Vec<JobInfo>, sqlx::Error> {
     let mut pipeline_info: Vec<JobInfo> = {
         // retrieve pipeline info from Postgres
         // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
         let mut sql_connection = pool.acquire().await?;
-        sqlx::query_as("SELECT * FROM constructum.jobs WHERE repo_uuid = $1")
+        sqlx::query_as("SELECT * FROM constructum.jobs WHERE repo_id = $1")
             .bind(repo_id)
             .fetch_all(&mut sql_connection)
             .await?
@@ -85,12 +86,14 @@ pub async fn list_unfinished_jobs(pool: PgPool) -> Result<Vec<JobInfo>, sqlx::Er
 pub async fn create_job(
     pool: PgPool,
     pipeline_uuid: Uuid,
+    build_number: i32,
     repo_uuid: Uuid,
     payload: CreateJobPayload,
 ) -> Result<(), sqlx::Error> {
     let mut sql_connection = pool.acquire().await?;
-    sqlx::query("INSERT INTO constructum.jobs (id, repo_id, commit_id, is_finished, status) VALUES ($1, $2, $3, FALSE, 'InProgress')")
+    sqlx::query("INSERT INTO constructum.jobs (id, seq, repo_id, commit_id, is_finished, status) VALUES ($1, $2, $3, $4, FALSE, 'InProgress')")
         .bind(pipeline_uuid)
+        .bind(build_number)
         .bind(repo_uuid)
         .bind(&payload.commit_hash)
         .execute(&mut sql_connection).await?;
