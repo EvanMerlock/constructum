@@ -4,7 +4,6 @@ use s3::{Bucket, Region, creds::Credentials};
 use serde::Deserialize;
 use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 
-
 #[derive(Deserialize, Debug)]
 pub struct Config {
     pub sql_connection_url: String,
@@ -19,7 +18,7 @@ pub struct Config {
     pub git_server_url: Option<String>,
 }
 
-pub async fn build_postgres_and_s3(config: Config) -> Result<(Pool<Postgres>, Bucket), ConstructumConfigError> {
+pub async fn build_postgres_and_s3(config: &Config) -> Result<(Pool<Postgres>, Bucket), ConstructumConfigError> {
     let pool = PgPoolOptions::new()
     .max_connections(5)
     .connect(&config.sql_connection_url).await?;
@@ -27,8 +26,8 @@ pub async fn build_postgres_and_s3(config: Config) -> Result<(Pool<Postgres>, Bu
     let bucket = Bucket::new(
         &config.s3_bucket,
         Region::Custom {
-            region: config.s3_region,
-            endpoint: config.s3_endpoint,
+            region: config.s3_region.clone(),
+            endpoint: config.s3_endpoint.clone(),
         },
         Credentials::default().expect("Failed to get credentials"),
     )?

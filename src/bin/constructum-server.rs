@@ -5,7 +5,7 @@ use axum::{
 use constructum::{
     config::{Config, ConstructumConfigError},
     server::restart_unfinished_jobs,
-    ConstructumState,
+    ConstructumServerState,
 };
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::{
@@ -25,14 +25,8 @@ async fn main() -> Result<(), ConstructumConfigError> {
         Err(err) => panic!("{err:#?}"),
     };
 
-    let gsu = config
-        .git_server_url
-        .clone()
-        .expect("failed to find git server URL");
-    let container_name = config.container_name.clone();
-    let (pool, bucket) = constructum::config::build_postgres_and_s3(config).await?;
 
-    let state = ConstructumState::new(pool, bucket, gsu, container_name);
+    let state = ConstructumServerState::new(config).await?;
 
     // TODO: invert control for endpoints.
     let subrouter = Router::new();

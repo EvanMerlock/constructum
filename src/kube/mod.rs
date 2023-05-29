@@ -1,11 +1,14 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, pin::Pin};
 
+use futures::{Stream, FutureExt};
 use k8s_openapi::api::{batch::v1::Job, core::v1::{PersistentVolumeClaim, Pod}};
 use kube::{Api, api::{LogParams, ListParams, DeleteParams}};
 use s3::Bucket;
 use serde::{Serialize, Deserialize};
 use tokio::{fs::File, io::AsyncReadExt};
 use uuid::Uuid;
+use tokio_stream::StreamExt;
+use bytes::Bytes;
 
 pub mod utils;
 mod secret;
@@ -173,13 +176,44 @@ pub async fn put_pod_logs_to_s3(job_name: String, container_name: Option<String>
         let pod_name = pod.metadata.name.expect("failed to get pod name");
         // this may fail due to k8s errors?
         let mut lp = LogParams::default();
-        lp.container = container_name.clone();        
+        lp.container = container_name.clone();
         let log_string = pods.logs(&pod_name, &lp).await?;
         let log_file_name = format!("{pod_name}-{file_name}.txt");
         log_names.push(log_file_name.clone());
         s3_bucket.put_object(log_file_name, log_string.as_bytes()).await.expect("failed to write container logs to s3");
     }
     Ok(log_names)
+}
+
+pub struct PodLog {
+    pub job_name: String,
+    pub container_name: Option<String>,
+    pub log: Bytes,
+}
+
+pub async fn stream_pod_logs(job_name: String, container_name: Option<String>) -> Result<impl Stream<Item = Result<PodLog, kube::Error>>, kube::Error> {
+    let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
+    let pods: Api<Pod> = Api::namespaced(k8s_client, "constructum");
+    let params = ListParams::default().labels(&format!("job-name={job_name}"));
+    let mut stream: Pin<Box<dyn Stream<Item = Result<PodLog, kube::Error>>>> = Box::pin(tokio_stream::empty());
+    for pod in pods.list(&params).await? {
+        let pod_name = pod.metadata.name.expect("failed to get pod name");
+        // this may fail due to k8s errors?
+        let lp = LogParams { container: container_name.clone(), ..Default::default() };
+        let cnt_name = container_name.clone();
+        let jname = job_name.clone();
+        let log_stream = Box::pin(pods.log_stream(&pod_name, &lp).await?.map(move |x: Result<Bytes, kube::Error>| 
+            match x {
+                Ok(log) => Ok(PodLog {
+                    job_name: jname.clone(),
+                    container_name: cnt_name.clone(),
+                    log,
+                }),
+                Err(e) => Err(e)
+        }));
+        stream = Box::pin(stream.merge(log_stream));
+    }
+    Ok(stream)
 }
 
 pub async fn delete_job(job_name: &str) -> Result<(), kube::Error> {

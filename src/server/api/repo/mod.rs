@@ -5,11 +5,11 @@ mod system;
 
 use axum::routing::{get, delete, post};
 
-use crate::ConstructumState;
+use crate::ConstructumServerState;
 
 pub use self::model::*;
 
-pub fn register_module(router: axum::Router<ConstructumState, axum::body::Body>) -> axum::Router<ConstructumState, axum::body::Body> {
+pub fn register_module(router: axum::Router<ConstructumServerState, axum::body::Body>) -> axum::Router<ConstructumServerState, axum::body::Body> {
     router
         .route("/repos/:repo_id", get(self::endpoints::get_repo))
         .route("/repos/:repo_id", delete(self::endpoints::remove_repository))

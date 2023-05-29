@@ -1,6 +1,5 @@
 use std::{path::{Path, PathBuf}, str::FromStr, collections::HashMap};
 
-use axum::http::HeaderValue;
 use k8s_openapi::api::{batch::v1::Job};
 use kube::{Api, api::{PostParams}, runtime::wait::{conditions}};
 use s3::Bucket;
@@ -9,7 +8,7 @@ use sqlx::PgPool;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config, self}, git, kube::{put_pod_logs_to_s3, delete_job}, server::{api::{job::{db::{get_job, complete_job}, JobInfo, StepStatus}, self, repo::RepoInfo}, self}, utils};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config}, git, kube::{put_pod_logs_to_s3, delete_job, stream_pod_logs}, server::{api::{job::{db::{get_job, complete_job}, JobInfo, StepStatus}, self, repo::RepoInfo}, self}, utils, ConstructumClientState};
 
 mod error;
 
@@ -23,10 +22,10 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
     let vault_url = config.vault_server.clone().expect("failed to acquire vault server URL for client");
     let k8s_token = super::kube::read_kubernetes_token(vault_url.clone(), PathBuf::from("/var/run/secrets/tokens/vault-token")).await?;
     
-    let (pool, bucket) = config::build_postgres_and_s3(config).await?;
+    let state = ConstructumClientState::new(config).await?;
 
-    let pipeline_info: JobInfo = get_job(pipeline_uuid, pool.clone()).await?;
-    let repo_info: RepoInfo = server::api::repo::db::get_repo(pipeline_info.repo_id, pool.clone()).await?;
+    let pipeline_info: JobInfo = get_job(pipeline_uuid, state.postgres()).await?;
+    let repo_info: RepoInfo = server::api::repo::db::get_repo(pipeline_info.repo_id, state.postgres()).await?;
     // begin by initializing the workspace for future jobs
     let pipeline_file = git::pull_repository(Path::new("/data/"), repo_info.repo_url, repo_info.repo_name, pipeline_info.commit_id).await?;
     let pipeline_working_directory = pipeline_file.1;
@@ -40,10 +39,10 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
 
     let materialized_secrets = build_pipeline_secrets(pipeline.clone(), vault_url.clone(), k8s_token).await?;
 
-    let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, bucket, pool.clone(), materialized_secrets).await?;
+    let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, state.s3_bucket(), state.postgres(), materialized_secrets).await?;
     println!("{pipeline_status:?}");
 
-    complete_job(pool, pipeline_status, pipeline_uuid).await?;
+    complete_job(state.postgres(), pipeline_status, pipeline_uuid).await?;
 
     Ok(())
 }
@@ -183,6 +182,9 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
 
             let data = crate::kube::build_pipeline_job(pipeline_step_config)?;
             jobs.create(&PostParams::default(), &data.0).await?;
+
+            // begin streaming logs to redis
+            let logs_stream = stream_pod_logs(data.1.clone(), Some(data.2.clone())).await?;
 
             // wait until the CI/CD job is complete or failed
     

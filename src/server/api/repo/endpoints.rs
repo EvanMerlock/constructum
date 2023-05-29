@@ -13,28 +13,28 @@ use crate::{
         api::{repo::{db::list_repos, GitRepoResponse}, job::JobInfo},
         error::ConstructumServerError,
     },
-    utils, ConstructumState,
+    utils, ConstructumServerState,
 };
 
 use super::{GiteaRepository, RegisterRepositoryPayload, RepoInfo};
 
 pub async fn list_known_repos(
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
 ) -> Result<Json<Vec<RepoInfo>>, ConstructumServerError> {
-    let repo_info = super::db::list_repos(state.postgres).await?;
+    let repo_info = super::db::list_repos(state.postgres()).await?;
 
     Ok(Json(repo_info))
 }
 
 pub async fn list_all_repos(
     headers: HeaderMap,
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
 ) -> Result<Json<Vec<GitRepoResponse>>, ConstructumServerError> {
     let auth_tok = headers
         .get("Authorization")
         .ok_or(ConstructumServerError::BadAuthorization)?;
     let resp = utils::get_with_auth(
-        format!("{}/api/v1/repos/search", state.git_server_url),
+        format!("{}/api/v1/repos/search", state.git_server_url()),
         "Authorization",
         auth_tok.to_str()?.to_owned(),
     )
@@ -54,7 +54,7 @@ pub async fn list_all_repos(
     }
 
     let git_repos = git_repos_resp.data;
-    let known_repos = list_repos(state.postgres).await?;
+    let known_repos = list_repos(state.postgres()).await?;
 
     // TODO: this is O(n^2)
     let git_repos = git_repos
@@ -84,9 +84,9 @@ pub async fn list_all_repos(
 
 pub async fn get_repo(
     Path(repo_id): Path<Uuid>,
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
 ) -> Result<Json<RepoInfo>, ConstructumServerError> {
-    let repo_info = super::db::get_repo(repo_id, state.postgres).await?;
+    let repo_info = super::db::get_repo(repo_id, state.postgres()).await?;
 
     Ok(Json(repo_info))
 }
@@ -94,7 +94,7 @@ pub async fn get_repo(
 #[tracing::instrument(skip(state, headers))]
 pub async fn register_repository(
     headers: HeaderMap,
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
     Json(payload): axum::extract::Json<RegisterRepositoryPayload>,
 ) -> Result<impl IntoResponse, ConstructumServerError> {
     #[derive(Serialize)]
@@ -109,7 +109,7 @@ pub async fn register_repository(
     let resp = utils::get_with_auth(
         format!(
             "{}/api/v1/repos/{}/{}",
-            state.git_server_url, payload.owner, payload.name
+            state.git_server_url(), payload.owner, payload.name
         ),
         "Authorization",
         corr_auth_tok.clone(),
@@ -119,7 +119,7 @@ pub async fn register_repository(
     let git_repo: GiteaRepository = resp.json().await?;
 
     // checking for existence
-    match super::db::get_repo_by_git_id(git_repo.id, state.postgres.clone()).await? {
+    match super::db::get_repo_by_git_id(git_repo.id, state.postgres()).await? {
         Some(RepoInfo {
             repo_uuid: _,
             git_id: _,
@@ -143,13 +143,13 @@ pub async fn register_repository(
             // just disabled
             // create wh and input
             let wh_id = super::system::add_constructum_webhook(
-                state.git_server_url,
+                state.git_server_url(),
                 git_repo.clone(),
                 corr_auth_tok.clone(),
             )
             .await?;
 
-            super::db::enable_repo(repo_uuid, wh_id, state.postgres).await?;
+            super::db::enable_repo(repo_uuid, wh_id, state.postgres()).await?;
 
             Ok((
                 StatusCode::OK,
@@ -164,7 +164,7 @@ pub async fn register_repository(
             // need to know wh_id before adding repo to DB
             // TODO: considering reordering
             let wh_id = super::system::add_constructum_webhook(
-                state.git_server_url,
+                state.git_server_url(),
                 git_repo.clone(),
                 corr_auth_tok.clone(),
             )
@@ -183,7 +183,7 @@ pub async fn register_repository(
                 builds_executed: 0,
             };
 
-            super::db::register_repo(state.postgres, payload).await?;
+            super::db::register_repo(state.postgres(), payload).await?;
 
             // TODO: mark this as json
             Ok((
@@ -198,10 +198,10 @@ pub async fn register_repository(
 pub async fn remove_repository(
     headers: HeaderMap,
     Path(repo_id): Path<Uuid>,
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
 ) -> Result<impl IntoResponse, ConstructumServerError> {
     // checking for existence
-    let _repo_ref = super::db::get_repo_optional(repo_id, state.postgres.clone())
+    let _repo_ref = super::db::get_repo_optional(repo_id, state.postgres())
         .await?
         .ok_or(ConstructumServerError::NoRepoFound)?;
 
@@ -210,15 +210,15 @@ pub async fn remove_repository(
         .ok_or(ConstructumServerError::BadAuthorization)?;
     let corr_auth_tok = auth_tok.to_str()?.to_owned();
 
-    let repo_info = super::db::get_repo(repo_id, state.postgres.clone()).await?;
+    let repo_info = super::db::get_repo(repo_id, state.postgres()).await?;
 
     super::system::remove_constructum_webhook(
-        state.git_server_url,
+        state.git_server_url(),
         repo_info,
         corr_auth_tok.clone(),
     )
     .await?;
-    match super::db::delete_repo(repo_id, state.postgres).await {
+    match super::db::delete_repo(repo_id, state.postgres()).await {
         Ok(()) => {}
         Err(e) => tracing::error!("Error: {}", e),
     };
@@ -229,13 +229,13 @@ pub async fn remove_repository(
 #[tracing::instrument(skip(state))]
 pub async fn jobs_for_repository(
     Path(repo_id): Path<Uuid>,
-    State(state): State<ConstructumState>,
+    State(state): State<ConstructumServerState>,
 ) -> Result<Json<Vec<JobInfo>>, ConstructumServerError> {
         // checking for existence
-        let _repo_ref = super::db::get_repo_optional(repo_id, state.postgres.clone())
+        let _repo_ref = super::db::get_repo_optional(repo_id, state.postgres())
         .await?
         .ok_or(ConstructumServerError::NoRepoFound)?;
 
-    let results = crate::server::api::job::db::list_jobs_for_repo(repo_id, state.postgres).await?;
+    let results = crate::server::api::job::db::list_jobs_for_repo(repo_id, state.postgres()).await?;
     Ok(Json(results))
 }

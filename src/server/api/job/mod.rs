@@ -4,11 +4,11 @@ mod model;
 
 use axum::routing::get;
 
-use crate::ConstructumState;
+use crate::ConstructumServerState;
 
 pub use self::model::*;
 
-pub fn register_module(router: axum::Router<ConstructumState, axum::body::Body>) -> axum::Router<ConstructumState, axum::body::Body> {
+pub fn register_module(router: axum::Router<ConstructumServerState, axum::body::Body>) -> axum::Router<ConstructumServerState, axum::body::Body> {
     router
         .route("/jobs", get(self::endpoints::list_jobs))
         .route("/jobs/:job_id", get(self::endpoints::get_job))

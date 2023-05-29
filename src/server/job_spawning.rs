@@ -5,7 +5,7 @@ use kube::{Api, api::PostParams, runtime::wait::{await_condition, conditions}};
 use tokio::{task, io::AsyncReadExt};
 use uuid::Uuid;
 
-use crate::{ConstructumState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
+use crate::{ConstructumServerState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
 
 use super::api::job::db::list_unfinished_jobs;
 
@@ -22,17 +22,17 @@ impl CreateJobPayload {
     }
 }
 
-pub async fn create_job(payload: CreateJobPayload, state: ConstructumState) -> Result<Uuid, ConstructumServerError> {
+pub async fn create_job(payload: CreateJobPayload, state: ConstructumServerState) -> Result<Uuid, ConstructumServerError> {
     let pipeline_uuid = record_new_job_to_sql(payload, state.clone()).await?;
     assign_job_to_k8s(pipeline_uuid, state).await?;
 
     Ok(pipeline_uuid)
 }
 
-async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumState) -> Result<Uuid, ConstructumServerError> {
+async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumServerState) -> Result<Uuid, ConstructumServerError> {
     // checking for existence
     let repo_ref = 
-        super::api::repo::db::get_repo_by_git_id(payload.repo_id, state.postgres.clone())
+        super::api::repo::db::get_repo_by_git_id(payload.repo_id, state.postgres())
             .await?
             .ok_or(ConstructumServerError::NoRepoFound)?;
 
@@ -52,13 +52,13 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumStat
 
     let pipeline_uuid = Uuid::new_v4();
     
-    super::api::job::db::create_job(state.postgres.clone(), pipeline_uuid, repo_ref.builds_executed+1, repo_ref.repo_uuid, payload).await?;
-    super::api::repo::db::update_repo_seq(state.postgres, repo_ref.repo_uuid, repo_ref.builds_executed+1).await?;
+    super::api::job::db::create_job(state.postgres(), pipeline_uuid, repo_ref.builds_executed+1, repo_ref.repo_uuid, payload).await?;
+    super::api::repo::db::update_repo_seq(state.postgres(), repo_ref.repo_uuid, repo_ref.builds_executed+1).await?;
 
     Ok(pipeline_uuid)
 }
 
-async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumState) -> Result<(), ConstructumServerError> {
+async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumServerState) -> Result<(), ConstructumServerError> {
     let pipeline_name = format!("pipeline-{pipeline_uuid}");
     let pipeline_client_name = format!("{pipeline_name}-client");
 
@@ -70,12 +70,12 @@ async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumState) -> Resu
     // create client job
     let k8s_client = kube::Client::try_default().await?;
     let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
-    let data = crate::kube::build_client_job(pipeline_uuid, pipeline_client_name.clone(), state.container_name.clone(), Some(String::from("constructum-client-validate")))?;
+    let data = crate::kube::build_client_job(pipeline_uuid, pipeline_client_name.clone(), state.container_name(), Some(String::from("constructum-client-validate")))?;
     let _ = jobs.create(&PostParams::default(), &data).await?;
 
     {
         // only handle the lock here
-        state.current_jobs.write().expect("lock poisoned").insert(pipeline_uuid);
+        state.current_jobs().write().expect("lock poisoned").insert(pipeline_uuid);
     }
 
     // split this out to not block the response to the Git server
@@ -86,7 +86,7 @@ async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumState) -> Resu
     Ok(())
 }
 
-async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: ConstructumState) {
+async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: ConstructumServerState) {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
     let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
@@ -94,7 +94,7 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
     // TODO: check for job cancellation and set job status correctly
 
     // record results
-    match put_pod_logs_to_s3(pipeline_client_name.clone(), None, pipeline_client_name.to_string(), state.s3_bucket).await {
+    match put_pod_logs_to_s3(pipeline_client_name.clone(), None, pipeline_client_name.to_string(), state.s3_bucket()).await {
         Ok(_) => {},
         Err(e) => {
             println!("{e}");
@@ -105,15 +105,15 @@ async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: Co
     delete_job(&pipeline_client_name).await.expect("failed to delete job");
     delete_pvc(&pipeline_uuid.to_string()).await.expect("failed to delete job");
 
-    state.current_jobs.write().expect("lock poisoned").remove(&pipeline_uuid);
+    state.current_jobs().write().expect("lock poisoned").remove(&pipeline_uuid);
 }
 
-pub async fn restart_unfinished_jobs(state: ConstructumState) -> Result<(), ConstructumServerError> {
-    let unfinished_jobs = list_unfinished_jobs(state.postgres.clone()).await?;
+pub async fn restart_unfinished_jobs(state: ConstructumServerState) -> Result<(), ConstructumServerError> {
+    let unfinished_jobs = list_unfinished_jobs(state.postgres()).await?;
 
     // restart first N jobs, where N is defined by TODO: config
     for unfinished in unfinished_jobs {
-        if !state.current_jobs.read().expect("lock poisoned").contains(&unfinished.job_uuid) {
+        if !state.current_jobs().read().expect("lock poisoned").contains(&unfinished.job_uuid) {
             assign_job_to_k8s(unfinished.job_uuid, state.clone()).await?;
             break;
         }
