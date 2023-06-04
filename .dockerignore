@@ -1,0 +1,11 @@
+*/.git/*
+*/.direnv/*
+*/k8s-manifests/*
+*/.env*
+*/sql/*
+*/target/*
+*/constructum-ui/.next/*
+*/constructum-ui/.env*
+*/constructum-ui/node_modules/*
+*/constructum-ui/cert.pem
+*/constructum-ui/key.pem

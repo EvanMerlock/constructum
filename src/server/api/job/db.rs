@@ -124,7 +124,8 @@ pub async fn get_job_log_ids(pool: PgPool, job_id: Uuid) -> Result<Vec<String>, 
         // retrieve pipeline info from Postgres
         // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
         let mut sql_connection = pool.acquire().await?;
-        sqlx::query_as("SELECT json_array_elements(json_array_elements(job_json::json->'pipeline'->'steps')->'log_key')::text AS log_key FROM constructum.jobs WHERE id = $1")
+        // TODO: broken
+        sqlx::query_as("SELECT UNNEST(logs_keys) AS log_key FROM constructum.steps WHERE job = $1")
             .bind(job_id)
             .fetch_all(&mut sql_connection).await?
     }.into_iter().map(|x: JobLogId| x.log_key.trim_matches('"').to_string()).collect();

@@ -4,6 +4,8 @@ use axum::{
 };
 use constructum::{client::{create_client_job, ConstructumClientError}, config::Config};
 
+use tracing_subscriber::prelude::*;
+
 use std::net::SocketAddr;
 
 #[tokio::main]

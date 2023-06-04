@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::Serialize;
 
-use crate::git;
+use crate::{git, redis::error::ConstructumRedisError};
 
 #[derive(Debug)]
 pub enum ConstructumServerError {
@@ -21,6 +21,7 @@ pub enum ConstructumServerError {
     ReqwestError(reqwest::Error),
     NoRepoFound,
     RepoAlreadyRegistered,
+    Redis(ConstructumRedisError),
 }
 
 impl Display for ConstructumServerError {
@@ -48,6 +49,7 @@ impl Display for ConstructumServerError {
             ConstructumServerError::RepoAlreadyRegistered => {
                 write!(f, "Server: Repo Already Registered")
             }
+            ConstructumServerError::Redis(red) => write!(f, "Server: Redis Error: {red}"),
         }
     }
 }
@@ -117,5 +119,11 @@ impl From<reqwest::header::ToStrError> for ConstructumServerError {
 impl From<reqwest::Error> for ConstructumServerError {
     fn from(value: reqwest::Error) -> Self {
         ConstructumServerError::ReqwestError(value)
+    }
+}
+
+impl From<ConstructumRedisError> for ConstructumServerError {
+    fn from(value: ConstructumRedisError) -> Self {
+        Self::Redis(value)
     }
 }

@@ -1,7 +1,9 @@
-use sqlx::{PgPool};
+use sqlx::{PgPool, FromRow};
 use uuid::Uuid;
 
-use crate::{pipeline::{PipelineStep}, server::api::job::{CompletedPipelineStep, StepStatus}};
+use crate::{pipeline::{PipelineStep}};
+
+use super::model::{CompletedPipelineStep, StepStatus};
 
 pub async fn list_steps(
     pool: PgPool
@@ -32,6 +34,22 @@ pub async fn list_steps_for_job(
     steps.sort_by(|left: &CompletedPipelineStep, right: &CompletedPipelineStep| left.step_number.partial_cmp(&right.step_number).expect("failed to sort steps"));
 
     Ok(steps)
+}
+
+pub async fn get_step(
+    pool: PgPool,
+    step_id: Uuid
+) -> Result<CompletedPipelineStep, sqlx::Error> {
+    let step: CompletedPipelineStep = {
+        // retrieve pipeline info from Postgres
+        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
+        let mut sql_connection = pool.acquire().await?;
+        sqlx::query_as("SELECT * FROM constructum.steps WHERE id = $1")
+            .bind(step_id)
+            .fetch_one(&mut sql_connection).await?
+    };
+
+    Ok(step)
 }
 
 pub async fn insert_step(
@@ -78,4 +96,22 @@ pub async fn update_step_logs(
         .bind(log_files)
         .execute(&mut sql_connection).await?;
     Ok(())
+}
+
+pub async fn get_logs_for_step(pool: PgPool, step_id: Uuid) -> Result<Vec<String>, sqlx::Error> {
+    #[derive(FromRow)]
+    struct StepLogId {
+        log_key: String,
+    }
+
+    let step_ids: Vec<String> = {
+        // retrieve pipeline info from Postgres
+        // we should release the connection ASAP so that we do not work steal while doing more computationally intensive work.
+        let mut sql_connection = pool.acquire().await?;
+        sqlx::query_as("SELECT UNNEST(log_keys) as log_key FROM constructum.steps WHERE id = $1")
+            .bind(step_id)
+            .fetch_all(&mut sql_connection).await?
+    }.into_iter().map(|x: StepLogId| x.log_key.trim_matches('"').to_string()).collect();
+
+    Ok(step_ids)
 }

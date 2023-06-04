@@ -1,14 +1,15 @@
-use std::{path::{Path, PathBuf}, str::FromStr, collections::HashMap};
+use std::{path::{Path, PathBuf}, str::FromStr, collections::HashMap, pin::Pin};
 
+use futures::Stream;
 use k8s_openapi::api::{batch::v1::Job};
 use kube::{Api, api::{PostParams}, runtime::wait::{conditions}};
 use s3::Bucket;
 use serde::{Serialize, Deserialize};
 use sqlx::PgPool;
-use tokio::io::AsyncReadExt;
+use tokio::{io::AsyncReadExt, sync::mpsc::Sender};
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config}, git, kube::{put_pod_logs_to_s3, delete_job, stream_pod_logs}, server::{api::{job::{db::{get_job, complete_job}, JobInfo, StepStatus}, self, repo::RepoInfo}, self}, utils, ConstructumClientState};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config}, git, kube::{put_pod_logs_to_s3, delete_job, stream_pod_logs, PodLog}, server::{api::{job::{db::{get_job, complete_job}, JobInfo}, self, repo::RepoInfo, step::model::StepStatus}, self}, utils, ConstructumClientState, redis::{logs_to_redis}};
 
 mod error;
 
@@ -39,7 +40,7 @@ pub async fn create_client_job(config: Config) -> Result<(), ConstructumClientEr
 
     let materialized_secrets = build_pipeline_secrets(pipeline.clone(), vault_url.clone(), k8s_token).await?;
 
-    let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, state.s3_bucket(), state.postgres(), materialized_secrets).await?;
+    let pipeline_status = execute_pipeline(pipeline.clone(), pipeline_info.job_uuid, pipeline_working_directory, &state, materialized_secrets).await?;
     println!("{pipeline_status:?}");
 
     complete_job(state.postgres(), pipeline_status, pipeline_uuid).await?;
@@ -131,14 +132,14 @@ pub async fn build_step_secrets(step: PipelineStep, pipeline_secret_config: Mate
     }
 }
 
-pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pipeline_working_directory: PathBuf, bucket: Bucket, pool: PgPool, secrets: MaterializedSecretConfig) -> Result<PipelineStatus, PipelineExecError> {        
+pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pipeline_working_directory: PathBuf, state: &ConstructumClientState, secrets: MaterializedSecretConfig) -> Result<PipelineStatus, PipelineExecError> {        
         // read in stages
         let k8s_client = kube::Client::try_default().await?;
         // execute stages as jobs on k8s
 
         let mut steps = Vec::new();
         for (step_num, step) in pipeline.steps.clone().into_iter().enumerate() {
-            let step_uuid = api::step::db::insert_step(pool.clone(), pipeline_uuid, i32::try_from(step_num).expect("failed to convert step num"), &step).await?;
+            let step_uuid = api::step::db::insert_step(state.postgres(), pipeline_uuid, i32::try_from(step_num).expect("failed to convert step num"), &step).await?;
             steps.push((step_uuid, step));
         }
 
@@ -146,7 +147,7 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
         let jobs: Api<Job> = Api::namespaced(k8s_client.clone(), "constructum");
         for (step_id, step) in steps {
             let name = step.name.clone();
-            api::step::db::update_step_status(pool.clone(), step_id, StepStatus::InProgress).await?;
+            api::step::db::update_step_status(state.postgres(), step_id, StepStatus::InProgress).await?;
 
             // grab all secrets necessary for this step
 
@@ -184,32 +185,43 @@ pub async fn execute_pipeline(pipeline: Pipeline, pipeline_uuid: uuid::Uuid, pip
             jobs.create(&PostParams::default(), &data.0).await?;
 
             // begin streaming logs to redis
-            let logs_stream = stream_pod_logs(data.1.clone(), Some(data.2.clone())).await?;
+            // TODO: job name is wrong, needs to be pipeline-UUID-container name.
+            let logs_stream_fut = logs_to_redis(state.redis(), data.1.clone(), data.2.clone(), name.clone());
+
 
             // wait until the CI/CD job is complete or failed
     
             let pipeline_job_name = format!("pipeline-{pipeline_uuid}-{name}");
-            kube::runtime::wait::await_condition(jobs.clone(), &pipeline_job_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await?;
+            let job_done_fut = kube::runtime::wait::await_condition(jobs.clone(), &pipeline_job_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed()));
+
+            let logs_stream_handle = tokio::spawn(logs_stream_fut);
+
+            let res = tokio::join!(
+                logs_stream_handle,
+                job_done_fut
+            );
+
+            res.0.expect("failed to join")?;
+            res.1?;
 
             // upload pod logs to S3
-
-            let log_names = put_pod_logs_to_s3(data.1.clone(), Some(data.2), data.1, bucket.clone()).await?;
+            let log_names = put_pod_logs_to_s3(data.1.clone(), Some(data.2), data.1, state.s3_bucket()).await?;
 
             // check if job failed. if so, bail from pipeline with pipelinestatus::failed
 
             let job_with_status = jobs.get_status(&data.0.metadata.name.expect("failed to find job name")).await?;
             if let Some(_pcond) = job_with_status.status.expect("failed to get job status").conditions.expect("failed to get job conditions").iter().find(|c| c.type_ == "Failed" && c.status == "True") {
                 // delete the job
-                api::step::db::update_step_status(pool.clone(), step_id, StepStatus::Fail).await?;
-                api::step::db::update_step_logs(pool, step_id, log_names.clone()).await?;
+                api::step::db::update_step_status(state.postgres(), step_id, StepStatus::Fail).await?;
+                api::step::db::update_step_logs(state.postgres(), step_id, log_names.clone()).await?;
                 delete_job(&pipeline_job_name).await?;
                 
                 return Ok(PipelineStatus::Failed);
             }
 
             // delete the job
-            api::step::db::update_step_status(pool.clone(), step_id, StepStatus::Success).await?;
-            api::step::db::update_step_logs(pool.clone(), step_id, log_names.clone()).await?;
+            api::step::db::update_step_status(state.postgres(), step_id, StepStatus::Success).await?;
+            api::step::db::update_step_logs(state.postgres(), step_id, log_names.clone()).await?;
             delete_job(&pipeline_job_name).await?;
         }
 

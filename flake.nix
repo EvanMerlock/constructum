@@ -27,6 +27,8 @@
         {
           devShells.default = mkShell {
             inherit buildInputs nativeBuildInputs;
+
+            packages = [ tokio-console ];
           };
         }
       );

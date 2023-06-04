@@ -2,7 +2,7 @@ use std::{path::PathBuf, pin::Pin};
 
 use futures::{Stream, FutureExt};
 use k8s_openapi::api::{batch::v1::Job, core::v1::{PersistentVolumeClaim, Pod}};
-use kube::{Api, api::{LogParams, ListParams, DeleteParams}};
+use kube::{Api, api::{LogParams, ListParams, DeleteParams}, runtime::wait::{conditions, await_condition}};
 use s3::Bucket;
 use serde::{Serialize, Deserialize};
 use tokio::{fs::File, io::AsyncReadExt};
@@ -11,8 +11,10 @@ use tokio_stream::StreamExt;
 use bytes::Bytes;
 
 pub mod utils;
+pub mod error;
 mod secret;
 
+use self::error::ConstructumKubeError;
 pub use self::secret::*;
 
 use crate::{pipeline::{PipelineJobConfig}, client::PipelineExecError};
@@ -167,7 +169,7 @@ pub fn build_pipeline_job(job_cfg: PipelineJobConfig) -> Result<(Job, String, St
     }))?, pipeline_job_name, container_name))
 }
 
-pub async fn put_pod_logs_to_s3(job_name: String, container_name: Option<String>, file_name: String, s3_bucket: Bucket) -> Result<Vec<String>, kube::Error> {
+pub async fn put_pod_logs_to_s3(job_name: String, container_name: Option<String>, file_name: String, s3_bucket: Bucket) -> Result<Vec<String>, ConstructumKubeError> {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let pods: Api<Pod> = Api::namespaced(k8s_client, "constructum");
     let params = ListParams::default().labels(&format!("job-name={job_name}"));
@@ -175,8 +177,7 @@ pub async fn put_pod_logs_to_s3(job_name: String, container_name: Option<String>
     for pod in pods.list(&params).await? {
         let pod_name = pod.metadata.name.expect("failed to get pod name");
         // this may fail due to k8s errors?
-        let mut lp = LogParams::default();
-        lp.container = container_name.clone();
+        let lp = LogParams { container: container_name.clone(), ..Default::default() };
         let log_string = pods.logs(&pod_name, &lp).await?;
         let log_file_name = format!("{pod_name}-{file_name}.txt");
         log_names.push(log_file_name.clone());
@@ -191,15 +192,18 @@ pub struct PodLog {
     pub log: Bytes,
 }
 
-pub async fn stream_pod_logs(job_name: String, container_name: Option<String>) -> Result<impl Stream<Item = Result<PodLog, kube::Error>>, kube::Error> {
+pub async fn stream_pod_logs(job_name: String, container_name: Option<String>) -> Result<Pin<Box<dyn Stream<Item = Result<PodLog, kube::Error>> + Send>>, ConstructumKubeError> {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let pods: Api<Pod> = Api::namespaced(k8s_client, "constructum");
     let params = ListParams::default().labels(&format!("job-name={job_name}"));
-    let mut stream: Pin<Box<dyn Stream<Item = Result<PodLog, kube::Error>>>> = Box::pin(tokio_stream::empty());
+    let stream: Pin<Box<dyn Stream<Item = Result<PodLog, kube::Error>> + Send>> = Box::pin(tokio_stream::empty());
+    #[allow(clippy::never_loop)]
     for pod in pods.list(&params).await? {
         let pod_name = pod.metadata.name.expect("failed to get pod name");
+        // wait for the pod to run before building the logstream
+        await_condition(pods.clone(), &pod_name, conditions::is_pod_running()).await?;
         // this may fail due to k8s errors?
-        let lp = LogParams { container: container_name.clone(), ..Default::default() };
+        let lp = LogParams { container: container_name.clone(), follow: true, previous: false, ..Default::default() };
         let cnt_name = container_name.clone();
         let jname = job_name.clone();
         let log_stream = Box::pin(pods.log_stream(&pod_name, &lp).await?.map(move |x: Result<Bytes, kube::Error>| 
@@ -211,12 +215,13 @@ pub async fn stream_pod_logs(job_name: String, container_name: Option<String>) -
                 }),
                 Err(e) => Err(e)
         }));
-        stream = Box::pin(stream.merge(log_stream));
+        return Ok(log_stream)
+        // stream = Box::pin(stream.merge(log_stream));
     }
     Ok(stream)
 }
 
-pub async fn delete_job(job_name: &str) -> Result<(), kube::Error> {
+pub async fn delete_job(job_name: &str) -> Result<(), ConstructumKubeError> {
     let k8s_client = kube::Client::try_default().await?;
 
     let jobs: Api<Job> = Api::namespaced(k8s_client.clone(), "constructum");
@@ -232,7 +237,7 @@ pub async fn delete_job(job_name: &str) -> Result<(), kube::Error> {
     Ok(())
 }
 
-pub async fn delete_pvc(pipeline_uuid: &str) -> Result<(), kube::Error> {
+pub async fn delete_pvc(pipeline_uuid: &str) -> Result<(), ConstructumKubeError> {
     let k8s_client = kube::Client::try_default().await?;
 
     let pvcs: Api<PersistentVolumeClaim> = Api::namespaced(k8s_client, "constructum");

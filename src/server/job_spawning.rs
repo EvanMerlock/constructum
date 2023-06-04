@@ -3,9 +3,10 @@ use std::path::Path;
 use k8s_openapi::api::{core::v1::PersistentVolumeClaim, batch::v1::Job};
 use kube::{Api, api::PostParams, runtime::wait::{await_condition, conditions}};
 use tokio::{task, io::AsyncReadExt};
+use tracing::error;
 use uuid::Uuid;
 
-use crate::{ConstructumServerState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}};
+use crate::{ConstructumServerState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}, redis::{logs_to_redis}};
 
 use super::api::job::db::list_unfinished_jobs;
 
@@ -37,7 +38,7 @@ async fn record_new_job_to_sql(payload: CreateJobPayload, state: ConstructumServ
             .ok_or(ConstructumServerError::NoRepoFound)?;
 
     let mut pipeline_file = git::get_pipeline_file(
-        Path::new("E:\\Code\\.constructum\\build_cache"),
+        Path::new(&state.build_cache_location()),
         payload.html_url.clone(),
         payload.name.clone(),
         payload.commit_hash.clone(),
@@ -89,7 +90,25 @@ async fn assign_job_to_k8s(pipeline_uuid: Uuid, state: ConstructumServerState) -
 async fn server_job(pipeline_client_name: String, pipeline_uuid: Uuid, state: ConstructumServerState) {
     let k8s_client = kube::Client::try_default().await.expect("failed to acquire k8s client");
     let jobs: Api<Job> = Api::namespaced(k8s_client, "constructum");
-    let _ = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed())).await.expect("failed to wait on task");
+    let logs_stream_fut = logs_to_redis(state.redis(), pipeline_client_name.clone(), format!("{pipeline_client_name}-container"), String::from("_client"));
+
+    let job_done_fut = await_condition(jobs.clone(), &pipeline_client_name, conditions::Condition::or(conditions::is_job_completed(), crate::kube::utils::is_job_failed()));
+    let log_stream_handle = tokio::spawn(logs_stream_fut);
+
+    let res = tokio::join!(
+        log_stream_handle,
+        job_done_fut
+    );
+
+    match res.0.expect("failed to join") {
+        Ok(_) => {},
+        Err(err) => error!("Failed: {err}"),
+    }
+
+    match res.1 {
+        Ok(_) => {},
+        Err(err) => error!("Failed: {err}"),
+    };
 
     // TODO: check for job cancellation and set job status correctly
 

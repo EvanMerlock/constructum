@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-use crate::{config::ConstructumConfigError, git::GitError};
+use crate::{config::ConstructumConfigError, git::GitError, redis::error::ConstructumRedisError, kube::error::ConstructumKubeError};
 
 #[derive(Debug)]
 pub enum ConstructumClientError {
@@ -72,6 +72,8 @@ pub enum PipelineExecError {
     InvalidSecretConfiguration,
     ReqwestError(reqwest::Error),
     IOError(std::io::Error),
+    RedisError(ConstructumRedisError),
+    ConstructumKube(ConstructumKubeError),
 }
 
 impl Display for PipelineExecError {
@@ -84,6 +86,8 @@ impl Display for PipelineExecError {
             PipelineExecError::InvalidSecretConfiguration => write!(f, "Invalid Secret Configuration: Duplicate secret names were found"),
             PipelineExecError::ReqwestError(reqe) => write!(f, "Pipeline Error: Reqwest Error: {reqe}"),
             PipelineExecError::IOError(ioe) => write!(f, "Pipeline Error: I/O Error Error: {ioe}"),
+            PipelineExecError::RedisError(red) => write!(f, "Pipeline Error: Redis Error: {red}"),
+            PipelineExecError::ConstructumKube(kubc) => write!(f, "Pipeline Error: Kube Error: {kubc}"),
         }
     }
 }
@@ -123,5 +127,17 @@ impl From<reqwest::Error> for PipelineExecError {
 impl From<std::io::Error> for PipelineExecError {
     fn from(value: std::io::Error) -> Self {
         PipelineExecError::IOError(value)
+    }
+}
+
+impl From<ConstructumRedisError> for PipelineExecError {
+    fn from(value: ConstructumRedisError) -> Self {
+        PipelineExecError::RedisError(value)
+    }
+}
+
+impl From<ConstructumKubeError> for PipelineExecError {
+    fn from(value: ConstructumKubeError) -> Self {
+        PipelineExecError::ConstructumKube(value)
     }
 }

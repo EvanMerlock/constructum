@@ -7,6 +7,10 @@ use constructum::{
     server::restart_unfinished_jobs,
     ConstructumServerState,
 };
+
+use tracing::{log::LevelFilter, Level};
+use tracing_subscriber::prelude::*;
+
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::{
     classify::StatusInRangeAsFailures, normalize_path::NormalizePathLayer, trace::TraceLayer,

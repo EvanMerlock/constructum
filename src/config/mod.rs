@@ -10,7 +10,9 @@ pub struct Config {
     pub s3_region: String,
     pub s3_endpoint: String,
     pub s3_bucket: String,
+    pub redis_url: String,
     pub container_name: String,
+    pub build_cache_location: Option<String>,
     pub pipeline_uuid: Option<String>,
     // only required if secrets are needed for builds
     pub vault_server: Option<String>,
@@ -18,7 +20,7 @@ pub struct Config {
     pub git_server_url: Option<String>,
 }
 
-pub async fn build_postgres_and_s3(config: &Config) -> Result<(Pool<Postgres>, Bucket), ConstructumConfigError> {
+pub async fn build_database_clients(config: &Config) -> Result<(Pool<Postgres>, Bucket, redis::Client), ConstructumConfigError> {
     let pool = PgPoolOptions::new()
     .max_connections(5)
     .connect(&config.sql_connection_url).await?;
@@ -33,13 +35,16 @@ pub async fn build_postgres_and_s3(config: &Config) -> Result<(Pool<Postgres>, B
     )?
     .with_path_style();
 
-    Ok((pool, bucket))
+    let redis_client = redis::Client::open(config.redis_url.clone())?;
+
+    Ok((pool, bucket, redis_client))
 }
 
 #[derive(Debug)]
 pub enum ConstructumConfigError {
     SqlxError(sqlx::Error),
     S3Error(s3::error::S3Error),
+    RedisError(redis::RedisError),
 }
 
 impl Display for ConstructumConfigError {
@@ -47,6 +52,7 @@ impl Display for ConstructumConfigError {
         match self {
             ConstructumConfigError::SqlxError(sql) => write!(f, "Constructum Config Error: SQL Error: {sql}"),
             ConstructumConfigError::S3Error(s3) => write!(f, "Constructum Config Error: S3 Error: {s3}"),
+            ConstructumConfigError::RedisError(red) => write!(f, "Constructum Config Error: Redis Error: {red}"),
         }
     }
 }
@@ -62,5 +68,11 @@ impl From<sqlx::Error> for ConstructumConfigError {
 impl From<s3::error::S3Error> for ConstructumConfigError {
     fn from(value: s3::error::S3Error) -> Self {
         ConstructumConfigError::S3Error(value)
+    }
+}
+
+impl From<redis::RedisError> for ConstructumConfigError {
+    fn from(value: redis::RedisError) -> Self {
+        ConstructumConfigError::RedisError(value)
     }
 }
