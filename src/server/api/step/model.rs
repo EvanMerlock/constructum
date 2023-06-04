@@ -37,14 +37,14 @@ pub enum StepStatus {
     Fail
 }
 
-impl<'a> Into<&'a str> for &'a StepStatus {
-    fn into(self) -> &'a str {
-        match self {
+impl<'a> From<StepStatus> for &'a str {
+    fn from(value: StepStatus) -> Self {
+        match value {
             StepStatus::NotStarted => "NotStarted",
             StepStatus::InProgress => "InProgress",
             StepStatus::Success => "Success",
             StepStatus::Fail => "Fail",
-        }
+        }    
     }
 }
 

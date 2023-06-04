@@ -6,7 +6,7 @@ use tokio::{task, io::AsyncReadExt};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ConstructumServerState, pipeline::{Pipeline}, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}, redis::{logs_to_redis}};
+use crate::{ConstructumServerState, pipeline::Pipeline, server::error::ConstructumServerError, git, kube::{build_client_pvc, put_pod_logs_to_s3, delete_job, delete_pvc}, redis::logs_to_redis};
 
 use super::api::job::db::list_unfinished_jobs;
 

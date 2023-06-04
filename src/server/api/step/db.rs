@@ -1,7 +1,7 @@
 use sqlx::{PgPool, FromRow};
 use uuid::Uuid;
 
-use crate::{pipeline::{PipelineStep}};
+use crate::pipeline::PipelineStep;
 
 use super::model::{CompletedPipelineStep, StepStatus};
 
@@ -67,7 +67,7 @@ pub async fn insert_step(
         .bind(&step.name)
         .bind(&step.image)
         .bind(&step.commands)
-        .bind(Into::<&str>::into(&StepStatus::NotStarted))
+        .bind(Into::<&str>::into(StepStatus::NotStarted))
         .execute(&mut sql_connection).await?;
     Ok(step_id)
 }
@@ -80,7 +80,7 @@ pub async fn update_step_status(
     let mut sql_connection = pool.acquire().await?;
     sqlx::query("UPDATE constructum.steps SET status = $2 WHERE id = $1")
         .bind(id)
-        .bind(Into::<&str>::into(&status))
+        .bind(Into::<&str>::into(status))
         .execute(&mut sql_connection).await?;
     Ok(())
 }

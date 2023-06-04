@@ -1,12 +1,12 @@
-use std::{pin::Pin, time::Duration};
+use std::{time::Duration};
 
-use futures::{Stream};
+
 use redis::AsyncCommands;
 use tokio_stream::StreamExt;
 use bytes::Bytes;
 use tracing::{error, info};
 
-use crate::{kube::{PodLog, stream_pod_logs}};
+use crate::kube::stream_pod_logs;
 
 use self::error::ConstructumRedisError;
 

@@ -1,4 +1,4 @@
-use sqlx::{PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::RepoInfo;

@@ -107,7 +107,7 @@ pub async fn complete_job(
 ) -> Result<(), sqlx::Error> {
     let mut sql_connection = pool.acquire().await?;
     sqlx::query("UPDATE constructum.jobs SET is_finished = TRUE, status = $1 WHERE id = $2")
-        .bind(Into::<&str>::into(&status))
+        .bind(Into::<&str>::into(status))
         .bind(job_id)
         .execute(&mut sql_connection)
         .await?;

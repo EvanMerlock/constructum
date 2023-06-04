@@ -11,12 +11,23 @@ pub enum PipelineStatus {
     Failed
 }
 
-impl<'a> Into<&'a str> for &'a PipelineStatus {
-    fn into(self) -> &'a str {
-        match self {
+impl<'a> From<PipelineStatus> for &'a str {
+    fn from(value: PipelineStatus) -> Self {
+        match value {
             PipelineStatus::InProgress => "InProgress",
             PipelineStatus::Complete => "Complete",
             PipelineStatus::Failed => "Failed",
+        }    
+    }
+}
+
+impl<'a> From<&'a str> for PipelineStatus {
+    fn from(value: &'a str) -> Self {
+        match value {
+            "InProgress" => PipelineStatus::InProgress,
+            "Complete" => PipelineStatus::Complete,
+            "Failed" => PipelineStatus::Failed,
+            _ => panic!("invalid PipelineStatus")
         }
     }
 }

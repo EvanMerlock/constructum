@@ -1,6 +1,6 @@
 use std::{path::PathBuf, pin::Pin};
 
-use futures::{Stream, FutureExt};
+use futures::Stream;
 use k8s_openapi::api::{batch::v1::Job, core::v1::{PersistentVolumeClaim, Pod}};
 use kube::{Api, api::{LogParams, ListParams, DeleteParams}, runtime::wait::{conditions, await_condition}};
 use s3::Bucket;
@@ -17,7 +17,7 @@ mod secret;
 use self::error::ConstructumKubeError;
 pub use self::secret::*;
 
-use crate::{pipeline::{PipelineJobConfig}, client::PipelineExecError};
+use crate::{pipeline::PipelineJobConfig, client::PipelineExecError};
 
 pub fn build_client_pvc(pipeline_uuid: Uuid) -> Result<PersistentVolumeClaim, serde_json::Error> {
     serde_json::from_value(serde_json::json!({

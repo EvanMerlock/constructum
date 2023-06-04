@@ -1,8 +1,8 @@
 use std::{fmt::Display, error::Error};
 
-use axum::{response::{IntoResponse, Response}, http::{StatusCode}};
+use axum::{response::{IntoResponse, Response}, http::StatusCode};
 
-use crate::{server::error::ConstructumServerError};
+use crate::server::error::ConstructumServerError;
 
 
 #[derive(Debug)]

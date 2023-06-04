@@ -1,23 +1,18 @@
 use axum::{
-    routing::{delete, get, post},
+    routing::get,
     Router, ServiceExt,
 };
 use constructum::{
     config::{Config, ConstructumConfigError},
-    server::restart_unfinished_jobs,
     ConstructumServerState,
 };
 
-use tracing::{log::LevelFilter, Level};
-use tracing_subscriber::prelude::*;
-
-use tokio_cron_scheduler::{Job, JobScheduler};
 use tower_http::{
     classify::StatusInRangeAsFailures, normalize_path::NormalizePathLayer, trace::TraceLayer,
 };
 use tower_layer::Layer;
 
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> Result<(), ConstructumConfigError> {

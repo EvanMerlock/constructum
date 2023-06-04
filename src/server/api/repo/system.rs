@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 use serde::{Serialize, Deserialize};
 use tracing::info;
 
-use crate::{server::{error::ConstructumServerError}, utils::{post_with_auth, delete_with_auth}};
+use crate::{server::error::ConstructumServerError, utils::{post_with_auth, delete_with_auth}};
 
 use super::{GiteaRepository, RepoInfo};
 

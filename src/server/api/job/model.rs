@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Serialize};
 use uuid::Uuid;
 
-use sqlx::{postgres::PgRow, Row, FromRow};
-use crate::{pipeline::{PipelineStatus}, server::api::step::model::CompletedPipelineStep};
+use sqlx::{postgres::PgRow, Row};
+use crate::{pipeline::PipelineStatus, server::api::step::model::CompletedPipelineStep};
 
 
 #[derive(Debug, Serialize)]

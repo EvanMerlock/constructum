@@ -5,7 +5,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use tracing::info;
+
 use uuid::Uuid;
 
 use crate::{

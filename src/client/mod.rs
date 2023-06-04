@@ -1,15 +1,15 @@
-use std::{path::{Path, PathBuf}, str::FromStr, collections::HashMap, pin::Pin};
+use std::{path::{Path, PathBuf}, str::FromStr, collections::HashMap};
 
-use futures::Stream;
-use k8s_openapi::api::{batch::v1::Job};
-use kube::{Api, api::{PostParams}, runtime::wait::{conditions}};
-use s3::Bucket;
+
+use k8s_openapi::api::batch::v1::Job;
+use kube::{Api, api::PostParams, runtime::wait::conditions};
+
 use serde::{Serialize, Deserialize};
-use sqlx::PgPool;
-use tokio::{io::AsyncReadExt, sync::mpsc::Sender};
+
+use tokio::{io::AsyncReadExt};
 use uuid::Uuid;
 
-use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::{Config}, git, kube::{put_pod_logs_to_s3, delete_job, stream_pod_logs, PodLog}, server::{api::{job::{db::{get_job, complete_job}, JobInfo}, self, repo::RepoInfo, step::model::StepStatus}, self}, utils, ConstructumClientState, redis::{logs_to_redis}};
+use crate::{pipeline::{Pipeline, PipelineStatus, PipelineJobConfig, MaterializedSecretConfig, PipelineStep, MaterializedSecret}, config::Config, git, kube::{put_pod_logs_to_s3, delete_job}, server::{api::{job::{db::{get_job, complete_job}, JobInfo}, self, repo::RepoInfo, step::model::StepStatus}, self}, utils, ConstructumClientState, redis::logs_to_redis};
 
 mod error;
 
