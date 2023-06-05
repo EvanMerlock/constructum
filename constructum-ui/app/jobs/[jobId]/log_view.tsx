@@ -6,8 +6,8 @@ import useSWR from "swr";
 const fetcher = (args: string) => fetch(args).then((res) => res.json());
 
 interface LogViewData {
-    ManyLogs: string[] | undefined,
-    Logs: string | undefined,
+  ManyLogs: string[] | undefined;
+  Logs: string | undefined;
 }
 
 export default function LogView({
@@ -17,7 +17,11 @@ export default function LogView({
   jobId: UUID;
   stepId: UUID;
 }) {
-  const { data, error, isLoading }: { data: LogViewData, error: any, isLoading: boolean } = useSWR(
+  const {
+    data,
+    error,
+    isLoading,
+  }: { data: LogViewData; error: any; isLoading: boolean } = useSWR(
     `/v1/api/jobs/${jobId}/steps/${stepId}/logs`,
     fetcher
   );
@@ -41,8 +45,10 @@ export default function LogView({
       </>
     );
   }
-  
-  const logs = (data.ManyLogs != undefined ? data.ManyLogs.join() : data.Logs)?.split("\n")
+
+  const logs = (
+    data.ManyLogs != undefined ? data.ManyLogs.join() : data.Logs
+  )?.split("\n");
 
   if (logs == undefined) {
     return (
@@ -51,22 +57,39 @@ export default function LogView({
           <h1>Error Occurred While Loading</h1>
         </div>
       </>
-    ); 
+    );
   }
 
-  const numDigits = logs.length.toString().length
+  const numDigits = logs.length.toString().length;
 
   return (
     <>
-        <pre className="px-2 bg-slate-700 logView">
-            <>
-            {logs.map((line, i) => {
-
-              const spacing = numDigits - (i+1).toString().length
-                    return <><code className="text-slate-50">{i+1} {" ".repeat(spacing)}| {line}</code><br/></>;
-                })}
-            </>
+      <div className="px-2 bg-slate-700 flex flex-row logView">
+        <pre className="basis-1/12">
+          {logs.map((_line, i) => {
+            const spacing = numDigits - (i + 1).toString().length;
+            return (
+              <>
+                <code className="text-slate-50">
+                  {i + 1} {" ".repeat(spacing)}|<br />
+                </code>
+              </>
+            );
+          })}
         </pre>
+        <pre className="basis-11/12">
+          <>
+            {logs.map((line, _i) => {
+              return (
+                <>
+                  <code className="text-slate-50">{line}</code>
+                  <br />
+                </>
+              );
+            })}
+          </>
+        </pre>
+      </div>
     </>
   );
 }
