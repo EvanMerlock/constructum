@@ -17,13 +17,17 @@ export default async function Page({
 
   return (
     <>
-      <h1>{jobData.job_uuid}</h1>
-      <h2>Status: {jobData.status}</h2>
-      <h2>Is Finished? {jobData.is_finished ? "Yes" : "No"}</h2>
       <div className="space-y-4">
-        {jobData.steps.map((step, i) => {
-          return <StepRow step={step} jobId={jobData.job_uuid} />;
-        })}
+        <div>
+          <h1>{jobData.job_uuid}</h1>
+          <h2>Status: {jobData.status}</h2>
+          <h2>Is Finished? {jobData.is_finished ? "Yes" : "No"}</h2>
+        </div>
+        <div className="space-y-4">
+          {jobData.steps.map((step, i) => {
+            return <StepRow step={step} jobId={jobData.job_uuid} />;
+          })}
+        </div>
       </div>
     </>
   );
