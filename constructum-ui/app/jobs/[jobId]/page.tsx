@@ -21,9 +21,9 @@ export default async function Page({
       <h2>Status: {jobData.status}</h2>
       <h2>Is Finished? {jobData.is_finished ? "Yes" : "No"}</h2>
       <div className="space-y-4">
-        {jobData.steps.map((step, i) => (
-          <StepRow step={step} />
-        ))}
+        {jobData.steps.map((step, i) => {
+          return <StepRow step={step} jobId={jobData.job_uuid} />;
+        })}
       </div>
     </>
   );
